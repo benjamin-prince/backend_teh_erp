@@ -1,9 +1,5 @@
-# TEHTEK — Caddyfile (VPS 1)
-# Handles TLS automatically via Let's Encrypt
-# Backend: FastAPI running on port 8000 inside Docker network
 
 api.tehtek.com {
-    # Security headers
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options "nosniff"
@@ -13,45 +9,23 @@ api.tehtek.com {
         -Server
     }
 
-    # CORS — allow staff app and customer portal only
-    @cors_preflight method OPTIONS
-    handle @cors_preflight {
-        header Access-Control-Allow-Origin "{header.origin}"
-        header Access-Control-Allow-Methods "GET, POST, PATCH, DELETE, OPTIONS"
-        header Access-Control-Allow-Headers "Authorization, Content-Type, Accept"
-        header Access-Control-Max-Age "86400"
+    @blocked {
+        path /.env /.git* /docker-compose.yml
+    }
+    respond @blocked 403
+
+    header Access-Control-Allow-Origin "*"
+    header Access-Control-Allow-Credentials "true"
+
+    @options method OPTIONS
+    handle @options {
         respond 204
     }
 
-    header Access-Control-Allow-Origin "{header.origin}"
-    header Access-Control-Allow-Credentials "true"
+    reverse_proxy backend:8000
 
-    # Rate limiting on auth endpoints (brute-force protection, UR-002)
-    @auth_routes path /api/v1/auth/*
-    handle @auth_routes {
-        rate_limit {
-            zone auth_zone {
-                key {remote_host}
-                events 20
-                window 1m
-            }
-        }
-        reverse_proxy backend:8000
-    }
-
-    # All other routes proxied to FastAPI
-    reverse_proxy backend:8000 {
-        health_uri /api/v1/health
-        health_interval 30s
-        health_timeout 10s
-    }
-
-    # Logging
     log {
-        output file /var/log/caddy/api.tehtek.com.log {
-            roll_size 50mb
-            roll_keep 10
-        }
+        output stdout
         format json
     }
 }
