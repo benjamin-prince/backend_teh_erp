@@ -20,6 +20,7 @@ def login(body: schemas.LoginRequest, request: Request, db: Session = Depends(ge
     return schemas.TokenResponse(
         access_token=result["access_token"],
         refresh_token=result["refresh_token"],
+        must_change_password=result["must_change_password"],
     )
 
 @auth_router.post("/refresh", response_model=schemas.TokenResponse)
@@ -70,8 +71,9 @@ def change_password(
     if not validate_password_strength(body.new_password):
         raise HTTPException(400, "New password too weak (min 8 chars, 1 uppercase, 1 digit)")
     current_user.hashed_password = hash_password(body.new_password)
+    current_user.must_change_password = False  # clear forced-change flag
     db.commit()
-    return {"message": "Password changed successfully."}
+    return {"message": "Password changed successfully.", "must_change_password": False}
 
 
 # ── Users router (all protected) ──────────────────────────────────────────────

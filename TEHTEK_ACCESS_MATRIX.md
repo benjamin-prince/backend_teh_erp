@@ -1,8 +1,11 @@
 # TEHTEK — Dashboard Access Matrix
-# Version: 1.0 | April 2026
+# Version: 1.2 | April 2026
 # Owner: Benjamin Boule Fogang
 # Purpose: Define who sees what in the staff app and customer portal.
 # Reference: TEHTEK_RULES.md Section 15 (ACC-001 to ACC-008)
+# Changelog v1.2: Added forced password change flow (UR-011). Token behaviour updated.
+# Changelog v1.1: Added authentication requirements section, public route whitelist,
+#                 ACC-007 and ACC-008 references, route audit guidance.
 
 ---
 
@@ -90,6 +93,40 @@ Any new public route requires Owner approval, written justification, and audit l
 - Refresh token lifetime: 7 days (staff) / 3 days (portal)
 - Refresh tokens are single-use — rotation on every use (UR-008)
 - Replayed refresh tokens invalidate ALL user sessions (UR-009)
+
+### Forced Password Change on First Login (UR-011)
+The login response always includes a `must_change_password` boolean field.
+
+```json
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "token_type": "bearer",
+  "must_change_password": true
+}
+```
+
+**If `must_change_password: true`:**
+- Frontend redirects immediately to `/change-password`
+- No other page or API action is accessible until password is changed
+- User calls `PATCH /api/v1/auth/me/password` with current + new password
+- Backend sets `must_change_password = false` on success
+- Next login returns `must_change_password: false` — normal access granted
+
+**Who gets `must_change_password: true` set:**
+- Superadmin seeded by system on first launch
+- Any user whose account is created with the flag explicitly set by their creator
+
+**Frontend enforcement:**
+```
+Login → must_change_password: true → /change-password (no back, no skip)
+                                          ↓
+                               PATCH /auth/me/password
+                                          ↓
+                               must_change_password: false
+                                          ↓
+                               Redirect to dashboard
+```
 
 ---
 
@@ -658,3 +695,8 @@ Startup route audit validates this on every deployment.
 Only auth endpoints, password reset, health check, and the public tracking endpoint
 operate without JWT. All others require a valid, non-expired access token.
 Any addition to the whitelist requires Owner approval and this document updated.
+
+**Rule UR-011:** Forced password change on first login.
+Seeded accounts have must_change_password=true. Login response includes this flag.
+Frontend blocks all navigation until PATCH /auth/me/password clears the flag.
+Backend sets must_change_password=false on successful password change.

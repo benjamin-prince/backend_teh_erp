@@ -124,6 +124,7 @@ def login(
         "access_token": access_token,
         "refresh_token": raw_refresh,
         "token_type": "bearer",
+        "must_change_password": user.must_change_password,
         "user": user,
     }
 
@@ -332,22 +333,33 @@ def get_user_audit_log(db: Session, user_id: int, skip: int = 0, limit: int = 10
     )
 
 
-# ── Superadmin seed ───────────────────────────────────────────────────────────
+# -- Superadmin seed ----------------------------------------------------------
 
-def seed_superadmin(db: Session, company_id: int) -> None:
-    """Creates the founder superadmin account if it doesn't exist."""
-    existing = db.query(User).filter_by(
-        email=settings.SUPERADMIN_EMAIL
-    ).first()
-    if not existing:
-        db.add(User(
-            email=settings.SUPERADMIN_EMAIL,
-            hashed_password=hash_password(settings.SUPERADMIN_PASSWORD),
-            first_name=settings.SUPERADMIN_FIRST_NAME,
-            last_name=settings.SUPERADMIN_LAST_NAME,
-            user_type="internal",
-            status=UserStatus.active,
-            company_id=company_id,
-            is_superadmin=True,
-        ))
-        db.commit()
+def seed_superadmin(db: Session, company_id: int) -> bool:
+    """
+    Creates the superadmin on first launch if they don't exist.
+    Returns True if created, False if already existed.
+    """
+    existing = db.query(User).filter_by(email=settings.SUPERADMIN_EMAIL).first()
+    if existing:
+        return False
+
+    if not validate_password_strength(settings.SUPERADMIN_PASSWORD):
+        raise ValueError(
+            "SUPERADMIN_PASSWORD is too weak -- min 8 chars, 1 uppercase, 1 digit"
+        )
+
+    db.add(User(
+        email=settings.SUPERADMIN_EMAIL,
+        phone=settings.SUPERADMIN_PHONE or None,
+        hashed_password=hash_password(settings.SUPERADMIN_PASSWORD),
+        first_name=settings.SUPERADMIN_FIRST_NAME,
+        last_name=settings.SUPERADMIN_LAST_NAME,
+        user_type="internal",
+        status=UserStatus.active,
+        company_id=company_id,
+        is_superadmin=True,
+        must_change_password=True,  # force password update on first login
+    ))
+    db.commit()
+    return True

@@ -74,6 +74,7 @@ class User(Base):
     mfa_secret      = Column(String(255), nullable=True)
     reset_token     = Column(String(255), nullable=True)
     reset_token_expiry = Column(DateTime, nullable=True)
+    must_change_password = Column(Boolean, default=False, nullable=False)  # True = force change on next login
     created_by      = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at      = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

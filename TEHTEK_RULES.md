@@ -1,9 +1,11 @@
 # TEHTEK — Business Rules Contract
-# Version: 1.0 | April 2026
+# Version: 1.5 | April 2026
 # Owner: Benjamin Boule Fogang
 # Rule: Every rule enforced at 3 levels: Database → Backend → Frontend + Audit log
 # Adding new rules: write here first → owner review → implement all 3 levels → test
-
+# Changelog v1.5: Added UR-011 (forced password change on first login for seeded accounts).
+# Changelog v1.4: Added UR-007 to UR-010 (auth/JWT rules), ACC-007 (no router without auth),
+#                 ACC-008 (public route whitelist).
 
 ---
 
@@ -279,6 +281,19 @@ If a used refresh token is presented again:
 - Token is invalidated immediately on first use (whether successful or not)
 - DB: reset_token_expiry and reset_token fields on users; cleared after use
 - Failed reset attempts logged in user_audit_logs
+
+### UR-011 — Seeded accounts must change password on first login ★ NEW
+Any user account created by the system seed (not by a staff member) must change their
+password immediately after their first successful login.
+- DB: must_change_password BOOLEAN NOT NULL DEFAULT FALSE on users table
+- Seed: must_change_password = TRUE for all seeded accounts (superadmin on first launch)
+- Backend (login): must_change_password flag included in TokenResponse
+- Frontend: if must_change_password = true in login response → redirect to /change-password
+  before granting access to any other page or API. Do not allow navigation around this.
+- Backend (change password): on successful PATCH /auth/me/password → set must_change_password = FALSE
+- The flag is cleared only by the user completing the password change themselves
+- Staff-created users: must_change_password defaults to FALSE unless explicitly set TRUE by creator
+- Audit log: password change event logged with actor = user themselves
 
 ---
 

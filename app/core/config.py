@@ -1,20 +1,14 @@
-from functools import lru_cache
-from typing import List
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import List
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore",
-        case_sensitive=True,
-    )
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Database
     DATABASE_URL: str
 
-    # JWT
+    # JWT (UR-007, UR-008, UR-010)
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
@@ -22,29 +16,16 @@ class Settings(BaseSettings):
     RESET_TOKEN_EXPIRE_MINUTES: int = 30
 
     # App
-    APP_NAME: str = "TEHTEK ERP API"
-    APP_VERSION: str = "1.0.0"
     APP_ENV: str = "production"
     DEBUG: bool = False
+    ALLOWED_ORIGINS: List[str] = ["https://app.tehtek.com", "https://customer.tehtek.com"]
 
-    # Security
-    MAX_LOGIN_ATTEMPTS: int = 5
-    LOCKOUT_MINUTES: int = 15
-
-    # CORS
-    ALLOWED_ORIGINS: List[str]
-
-    # Super Admin Seed
-    SUPERADMIN_EMAIL: str
-    SUPERADMIN_PHONE: str
+    # Seed
+    SUPERADMIN_EMAIL: str = "admin@tehtek.com"
+    SUPERADMIN_PHONE: str = ""
     SUPERADMIN_PASSWORD: str
-    SUPERADMIN_FIRST_NAME: str
-    SUPERADMIN_LAST_NAME: str
+    SUPERADMIN_FIRST_NAME: str = "Benjamin"
+    SUPERADMIN_LAST_NAME: str = "Boule Fogang"
 
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
-
-
-settings = get_settings()
+settings = Settings()

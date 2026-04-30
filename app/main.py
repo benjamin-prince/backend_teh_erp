@@ -92,7 +92,14 @@ async def lifespan(app: FastAPI):
         from app.modules.users.controller import seed_superadmin
         company = db.query(Company).filter_by(code="TEHTEK").first()
         if company:
-            seed_superadmin(db, company.id)
+            created = seed_superadmin(db, company.id)
+            if created:
+                logger.info(
+                    f"FIRST LAUNCH: superadmin created — "
+                    f"email={settings.SUPERADMIN_EMAIL}"
+                )
+            else:
+                logger.info("Superadmin already exists — skipped.")
 
         logger.info("Seeds complete.")
     except Exception as e:

@@ -1,8 +1,25 @@
 # TEHTEK ERP — Master Project Context
-# Version: 1.0 | April 2026
+# Version: 2.4 | April 2026
+# App Version: 1.2.0
 # Owner: Benjamin Boule Fogang
 # Purpose: Paste into Claude at the start of every session.
 # End every session with: "Update the master file."
+# Changelog v2.4 / App v1.2.0:
+#   - must_change_password field added to User model (DB column)
+#   - Seeded superadmin created with must_change_password=True
+#   - Login response includes must_change_password flag in TokenResponse
+#   - PATCH /auth/me/password clears must_change_password=False on success
+#   - All 4 documents updated: RULES v1.5, ACCESS_MATRIX v1.2, MASTER v2.4
+#   - New rule: UR-011 (forced password change on first login)
+# Changelog v2.3 / App v1.1.0:
+#   - Full backend built and deployed: companies, users, customers, cargo, stock,
+#     orders, infrastructure_services, commissions, finance — all modules complete
+#   - Superadmin seed: SUPERADMIN_PHONE added to config + User model
+#   - seed_superadmin() returns bool (True=created, False=already existed)
+#   - Password strength validated at startup — ValueError if too weak
+#   - First-launch log: 'FIRST LAUNCH: superadmin created — email=admin@tehtek.com'
+#   - Old backend retired. New backend live at api.tehtek.com/api/v1/
+# Changelog v2.2: Auth rules #31-#34, refresh_tokens table, auth retrofit notes.
 
 ---
 
@@ -79,29 +96,20 @@ Routes: USA / Europe / China ↔ Cameroon + local delivery
 
 ## 🖥️ INFRASTRUCTURE
 
-### ⚠️ TWO BACKENDS EXIST — Understand the difference
-
-#### OLD Backend — Currently Live on VPS 1
-- **URL pattern:** `https://api.tehtek.com/api/api/v1/...` (double /api/)
-- **Server path:** /opt/tehtek_erp_backend
-- **Status:** Running in production, serving the current frontend
-- **Has:** users, auth, roles, referrals (old commission system)
-- **Will be:** replaced by the new backend when it is ready and tested
-
-#### NEW Backend — Under Development (Not Yet Deployed)
-- **URL pattern:** `https://api.tehtek.com/api/v1/...` (clean, no double /api/)
-- **Status:** Being built from scratch — NOT deployed to any server yet
-- **Has built:** companies module (Week 1) + customers module (Week 2)
+### NEW Backend — Live on VPS 1 (App v1.2.0)
+- **URL pattern:** `https://api.tehtek.com/api/v1/...`
 - **Stack:** FastAPI + SQLAlchemy 2.0 sync + PostgreSQL 16 + Docker + Caddy
-- **⚠️ Auth note:** companies and customers routers currently use `_PLACEHOLDER_ACTOR`.
-  These routers MUST have `dependencies=[Depends(get_current_user)]` added the moment
-  the users module is built. No module ships to production without auth on its router.
+- **Status:** Deployed. All core modules running in production.
+- **Deploy:** `git pull && docker compose up -d --build backend`
 
-#### Frontend (VPS 2) — Currently Pointing to OLD Backend
-- **Staff app:** app.tehtek.com
-- **Customer portal:** customer.tehtek.com (planned — separate app, Week 10)
+### ~~OLD Backend~~ — Retired
+- Was at: `https://api.tehtek.com/api/api/v1/...` (double /api/)
+- Replaced by new backend. No longer running.
+
+#### Frontend (VPS 2)
+- **Staff app:** app.tehtek.com — now pointing to new backend
+- **Customer portal:** customer.tehtek.com (planned — Week 10)
 - **Docker image:** boulaz2002/tehtek-frontend:latest
-- Will be updated to point to new backend when it is deployed and stable
 
 ### Local Dev Machine
 - OS: Ubuntu (benjamin@benjamin-Lenovo-Slim-7)
@@ -311,6 +319,7 @@ is_superadmin,
 last_login, failed_login_count, locked_until,
 mfa_enabled, mfa_secret,
 reset_token, reset_token_expiry,
+must_change_password,         # True = force password change on next login
 created_by, created_at, updated_at, deleted_at
 ```
 
@@ -338,12 +347,12 @@ user_id   # nullable FK → users.id
 
 | Document | File | Version | Status |
 |---|---|---|---|
-| Master Context | TEHTEK_ERP_MASTER.md | 2.2 | ✅ Current |
+| Master Context | TEHTEK_ERP_MASTER.md | **2.4** | ✅ Current |
 | Master Enums | TEHTEK_ENUMS.md | 1.4 | ✅ Current |
-| Business Rules | TEHTEK_RULES.md | 1.4 | ✅ Current |
+| Business Rules | TEHTEK_RULES.md | **1.5** | ✅ Current |
 | Exception Matrix | TEHTEK_EXCEPTIONS.md | 1.3 | ✅ Current |
 | Prohibited Items | TEHTEK_PROHIBITED_ITEMS.md | 1.0 | ✅ Current |
-| Dashboard Access Matrix | TEHTEK_ACCESS_MATRIX.md | 1.1 | ✅ Current |
+| Dashboard Access Matrix | TEHTEK_ACCESS_MATRIX.md | **1.2** | ✅ Current |
 
 ### Critical Number Formats (SEQ-004)
 ```
@@ -401,34 +410,28 @@ Built: customers · customer_kyc · customer_contacts · customer_notes
        suppliers · supplier_contacts
 Business rules enforced: CR-001 to CR-005
 Endpoints: 25+ endpoints live
-NOTE: customers.user_id FK will be added after users module is built
-⚠️ Note: customers router has no auth yet — will be retrofitted after users module
+Auth applied at router level (ACC-007) ✅
+customers.user_id FK in place ✅
 
-### ❌ WEEK 3 — USERS MODULE (Build Next — Required for Security)
-Build: users · roles · permissions · role_permissions · user_roles
-       user_audit_logs · refresh_tokens
-       auth endpoints (login, refresh, logout, /me, password reset)
-       dependencies.py (get_current_user, check_permission, company_scope)
-AUTH RETROFIT (mandatory immediately after users module works):
-  → Add `dependencies=[Depends(get_current_user)]` to companies router
-  → Add `dependencies=[Depends(get_current_user)]` to customers router
-  → Add startup route audit to main.py (logs all routes missing auth dependency)
-  → Add user_id nullable FK to customers table
+### ✅ WEEK 3 — FULL BACKEND (all modules, clean slate)
+Built: ALL modules in one session
+       users · roles · permissions · user_roles · refresh_tokens · audit_logs
+       cargo · stock · orders · infrastructure_services · commissions · finance
+       ACC-007 applied to every router from day one
+       Deployed to VPS 1 · Auto-seeded on first launch
 
-### ❌ WEEK 4 — CARGO + STOCK MODELS
-Build: shipments · packages · tracking_events · bags · bag_packages
-       travelers · carrier_assignments · pickup_requests
-       products · warehouses · stock_items · stock_movements · reservations
-All new routers: `dependencies=[Depends(get_current_user)]` from day one
+### ✅ App v1.1.0 — SUPERADMIN SEED UPDATE
+- Added SUPERADMIN_PHONE to config and User seed
+- seed_superadmin() validates password strength, returns bool
+- First-launch vs repeat-launch logged distinctly in startup output
 
-### ❌ WEEK 5 — TRANSACTION APIs + INFRASTRUCTURE + COMMISSIONS
-Build: All cargo APIs · All stock/order APIs
-       service_tickets · service_contracts · service_visits · client_assets
-       technician_assignments · solar_projects · installed_systems
-       warranty_records · maintenance_schedules · security_devices
-       commission_partners · commission_leads · commission_rules
-       commission_records · commission_payouts · commission_disputes
-All new routers: `dependencies=[Depends(get_current_user)]` from day one
+### ✅ App v1.2.0 — FORCED PASSWORD CHANGE ON FIRST LOGIN (UR-011)
+- Added must_change_password BOOLEAN NOT NULL DEFAULT FALSE to users table
+- Superadmin seeded with must_change_password=True
+- Login response (TokenResponse) includes must_change_password flag
+- PATCH /auth/me/password clears flag to False on success
+- Frontend must redirect to /change-password and block navigation until cleared
+- Rule documented as UR-011 in TEHTEK_RULES.md v1.5
 
 ### ❌ WEEK 6-7 — FRONTEND — STAFF DASHBOARDS
 Build: Staff app (app.tehtek.com) connected to new backend
@@ -591,12 +594,13 @@ Has: auth, users, roles, referrals (old system) — serving current frontend
 
 ## 🚀 DEPLOY WORKFLOW
 
-### Old Backend update (VPS 1 — currently live)
+### New backend update (VPS 1 — live)
 ```bash
-cd /opt/tehtek_erp_backend
-git pull origin main
-docker compose restart backend
-docker compose logs backend --tail 20
+ssh tehtek@YOUR_VPS_IP
+cd /home/tehtek/tehtek_backend
+git pull
+docker compose up -d --build backend
+docker compose logs -f backend
 ```
 
 ### Frontend update (local → Docker Hub → VPS 2)
@@ -604,7 +608,7 @@ docker compose logs backend --tail 20
 # Build locally
 cd ~/teh_frontend
 docker build \
-  --build-arg NEXT_PUBLIC_API_URL=https://api.tehtek.com/api/api/v1 \
+  --build-arg NEXT_PUBLIC_API_URL=https://api.tehtek.com/api/v1 \
   -t boulaz2002/tehtek-frontend:latest .
 docker push boulaz2002/tehtek-frontend:latest
 
@@ -612,12 +616,11 @@ docker push boulaz2002/tehtek-frontend:latest
 cd ~ && docker compose pull && docker compose up -d
 ```
 
-### New Backend (when ready to deploy to VPS 1)
+### Useful VPS commands
 ```bash
-# Before deploying: verify startup route audit shows zero unprotected routes
-# Stop old backend, deploy new backend
-# Change NEXT_PUBLIC_API_URL to https://api.tehtek.com/api/v1 (no double /api/)
-# Update frontend build and redeploy
+docker compose logs -f backend
+docker compose exec db psql -U tehtek_user -d tehtek_db
+docker compose restart backend
 ```
 
 ---
@@ -657,12 +660,14 @@ cd ~ && docker compose pull && docker compose up -d
 24. Customer portal = separate app on customer.tehtek.com — NEVER mix with staff app
 25. Infrastructure Services module covers IT + Security + Smart Systems + Solar/Energy together
 
-### Build Order
-26. Users module must be built before: cargo, orders, infrastructure, commissions, finance
-27. After users module: add `user_id` nullable FK to customers table
-28. New backend URL = `/api/v1/...` — old backend URL = `/api/api/v1/...`
-29. Frontend stays on old backend URL until new backend is deployed and fully tested
-30. `_PLACEHOLDER_ACTOR` in current controllers will be replaced with real auth once users module is built
+### Superadmin Seed (v1.1.0) + Forced Password Change (v1.2.0)
+26. `seed_superadmin()` runs on every startup — idempotent (safe to call every boot)
+27. Returns `True` if created (first launch), `False` if already existed
+28. Requires `SUPERADMIN_PHONE` in `.env` — stored in `users.phone` (nullable)
+29. Password validated with `validate_password_strength()` — crashes at startup if too weak
+30. Seed order is always: sequences → parent company → superadmin. Never change this order.
+31. Seeded accounts are created with `must_change_password=True` — force change on first login
+    (renumbered: old rules 31–34 are now 32–35)
 
 ### Authentication — No Router Without Auth ★ NEW
 31. Every `APIRouter` is instantiated with `dependencies=[Depends(get_current_user)]`.
@@ -691,6 +696,6 @@ cd ~ && docker compose pull && docker compose up -d
 ```bash
 git add TEHTEK_ERP_MASTER.md TEHTEK_ENUMS.md TEHTEK_RULES.md \
         TEHTEK_EXCEPTIONS.md TEHTEK_PROHIBITED_ITEMS.md TEHTEK_ACCESS_MATRIX.md
-git commit -m "docs: v2.2 - auth rules, no router without auth, token rotation"
+git commit -m "docs: v2.4 - app v1.2.0 - forced password change on first login (UR-011)"
 git push
 ```
