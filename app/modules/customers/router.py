@@ -22,8 +22,7 @@ def create_customer(
     current_user=Depends(require_permission("customers:create")),
 ):
     data = body.model_dump()
-    if not current_user.is_superadmin:
-        data["company_id"] = current_user.company_id
+    data["company_id"] = current_user.company_id
     return controller.create_customer(db, data, current_user.id)
 
 @router.get("/customers", response_model=list[schemas.CustomerOut])
