@@ -1,28 +1,24 @@
-
 api.tehtek.com {
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
-        X-XSS-Protection "1; mode=block"
         Referrer-Policy "strict-origin-when-cross-origin"
         -Server
+        Access-Control-Allow-Origin "https://app.tehtek.com"
+        Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Authorization, Content-Type, Accept"
+        Access-Control-Allow-Credentials "true"
+        Access-Control-Max-Age "86400"
     }
 
-    @blocked {
-        path /.env /.git* /docker-compose.yml
+    @preflight method OPTIONS
+    respond @preflight 204
+
+    reverse_proxy backend:8000 {
+        health_uri /api/v1/health
+        health_interval 30s
     }
-    respond @blocked 403
-
-    header Access-Control-Allow-Origin "*"
-    header Access-Control-Allow-Credentials "true"
-
-    @options method OPTIONS
-    handle @options {
-        respond 204
-    }
-
-    reverse_proxy backend:8000
 
     log {
         output stdout

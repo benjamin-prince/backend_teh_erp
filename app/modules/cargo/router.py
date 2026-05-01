@@ -29,12 +29,20 @@ class ShipmentCreate(BaseModel):
     receiver_country: Optional[str] = None
     content_description: Optional[str] = None
     declared_value: Optional[float] = None
+    weight_kg: Optional[float] = None
+    length_cm: Optional[float] = None
+    width_cm: Optional[float] = None
+    height_cm: Optional[float] = None
+    insurance_status: Optional[str] = None
+    insured_value: Optional[float] = None
 
 class ShipmentUpdate(BaseModel):
     weight_kg: Optional[float] = None
     length_cm: Optional[float] = None
     width_cm: Optional[float] = None
     height_cm: Optional[float] = None
+    insurance_status: Optional[str] = None
+    insured_value: Optional[float] = None
     declared_value: Optional[float] = None
     customs_value: Optional[float] = None
     content_description: Optional[str] = None

@@ -20,6 +20,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -55,9 +56,6 @@ from app.modules.commissions.models import (  # noqa: F401
 from app.modules.finance.models import (  # noqa: F401
     Invoice, Payment, CashSession, Expense
 )
-from app.modules.insurance.models import (  # noqa: F401
-    InsurancePlan, InsurancePolicy, InsuranceClaim
-)
 
 from app.modules.companies.router import router as companies_router
 from app.modules.users.router import auth_router, protected_auth_router, users_router, roles_router
@@ -68,7 +66,6 @@ from app.modules.orders.router import router as orders_router
 from app.modules.infrastructure_services.router import router as infra_router
 from app.modules.commissions.router import router as commissions_router
 from app.modules.finance.router import router as finance_router
-from app.modules.insurance.router import router as insurance_router
 
 logger = logging.getLogger("tehtek")
 
@@ -89,9 +86,6 @@ async def lifespan(app: FastAPI):
                 logger.info(f"FIRST LAUNCH: superadmin created — email={settings.SUPERADMIN_EMAIL}")
             else:
                 logger.info("Superadmin already exists — skipped.")
-        from app.modules.insurance.seeds import seed_insurance_plans
-        if company:
-            seed_insurance_plans(db, company.id)
         logger.info("Seeds complete.")
     except Exception as e:
         logger.error(f"Seed error: {e}")
@@ -106,11 +100,19 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="TEHTEK ERP API",
     description="TEHTEK IT Services — Cargo, Retail, Infrastructure",
-    version="1.3.0",
+    version="1.2.0",
     docs_url="/api/docs" if settings.DEBUG else None,
     redoc_url="/api/redoc" if settings.DEBUG else None,
     openapi_url="/api/openapi.json" if settings.DEBUG else None,
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 
@@ -163,4 +165,3 @@ app.include_router(orders_router)
 app.include_router(infra_router)
 app.include_router(commissions_router)
 app.include_router(finance_router)
-app.include_router(insurance_router)
