@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_permission
+from app.modules.companies.models import Company
 from app.modules.customers import controller, schemas
+from app.modules.companies.models import Company
 from app.modules.customers.models import CustomerKYC
 
 router = APIRouter(
@@ -22,7 +24,12 @@ def create_customer(
     current_user=Depends(require_permission("customers:create")),
 ):
     data = body.model_dump()
-    data["company_id"] = current_user.company_id
+    company_id = current_user.company_id
+    if not company_id:
+        company = db.query(Company).filter_by(code="TEHTEK").first()
+        if company:
+            company_id = company.id
+    data["company_id"] = company_id
     return controller.create_customer(db, data, current_user.id)
 
 @router.get("/customers", response_model=list[schemas.CustomerOut])
