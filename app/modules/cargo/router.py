@@ -95,6 +95,7 @@ def create_shipment(
 @router.get("/shipments")
 def list_shipments(
     status: Optional[str] = None, skip: int = 0, limit: int = 50,
+    tracking_number: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user=Depends(require_permission("cargo:read")),
 ):
@@ -104,7 +105,17 @@ def list_shipments(
     )
     if status:
         q = q.filter(Shipment.status == status)
-    return q.offset(skip).limit(limit).all()
+    if tracking_number:
+        q = q.filter(Shipment.tracking_number == tracking_number.upper())
+    shipments = q.offset(skip).limit(limit).all()
+    from app.modules.customers.models import Customer
+    result = []
+    for s in shipments:
+        d = {c.name: getattr(s, c.name) for c in s.__table__.columns}
+        cust = db.query(Customer).filter_by(id=s.customer_id).first()
+        d["customer"] = {"id": cust.id, "full_name": cust.full_name} if cust else None
+        result.append(d)
+    return result
 
 @router.get("/shipments/{shipment_id}")
 def get_shipment(
