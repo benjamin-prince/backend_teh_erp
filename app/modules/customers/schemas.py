@@ -6,26 +6,44 @@ from app.core.enums import CustomerType, CustomerStatus, CustomerRiskLevel, KYCS
 
 class CustomerCreate(BaseModel):
     company_id: Optional[int] = None
+
     first_name: str
     last_name: str
     company_name: Optional[str] = None
+
+    entity_type: str = "individual"
+    nui: Optional[str] = None
+    bp: Optional[str] = None
+    fax: Optional[str] = None
+
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     whatsapp: Optional[str] = None
+
     address: Optional[str] = None
     city: Optional[str] = None
     country: str = "Cameroon"
+
     customer_type: CustomerType = CustomerType.retail
 
 class CustomerUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     company_name: Optional[str] = None
+
+    entity_type: Optional[str] = None
+    nui: Optional[str] = None
+    bp: Optional[str] = None
+    fax: Optional[str] = None
+
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     whatsapp: Optional[str] = None
+
     address: Optional[str] = None
     city: Optional[str] = None
+    country: Optional[str] = None
+
     customer_type: Optional[CustomerType] = None
 
 class BlacklistRequest(BaseModel):
@@ -34,21 +52,37 @@ class BlacklistRequest(BaseModel):
 class CustomerOut(BaseModel):
     id: int
     customer_code: str
+
     first_name: str
     last_name: str
     full_name: str
     company_name: Optional[str]
+
+    entity_type: str
+    nui: Optional[str]
+    bp: Optional[str]
+    fax: Optional[str]
+
     email: Optional[str]
     phone: Optional[str]
+    whatsapp: Optional[str]
+
+    address: Optional[str]
+    city: Optional[str]
+    country: Optional[str]
+
     customer_type: str
     status: str
     risk_level: str
     is_vip: bool
+
     kyc_status: str
     kyc_level: str
+
     credit_balance: float
     outstanding_balance: float
     created_at: datetime
+
     model_config = {"from_attributes": True}
 
 class KYCSubmit(BaseModel):

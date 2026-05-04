@@ -29,6 +29,12 @@ class Customer(Base):
     city             = Column(String(100), nullable=True)
     country          = Column(String(100), default="Cameroon")
 
+    entity_type = Column(String(50), nullable=False, default="individual")
+    nui = Column(String(100), nullable=True)
+    bp = Column(String(100), nullable=True)
+    fax = Column(String(50), nullable=True)
+    whatsapp = Column(String(50), nullable=True)
+
     customer_type    = Column(String(30), nullable=False, default=CustomerType.retail)
     status           = Column(String(30), nullable=False, default=CustomerStatus.active)
     risk_level       = Column(String(30), nullable=False, default=CustomerRiskLevel.low)
