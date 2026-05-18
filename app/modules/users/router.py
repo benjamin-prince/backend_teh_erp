@@ -204,3 +204,53 @@ def delete_role(
     from datetime import datetime
     role.deleted_at = datetime.utcnow()
     db.commit()
+
+
+@roles_router.get("/all-permissions")
+def list_all_permissions(
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("roles:manage")),
+):
+    from app.modules.users.models import Permission
+    perms = db.query(Permission).order_by(Permission.module, Permission.key).all()
+    return [{"id": p.id, "key": p.key, "module": p.module, "description": p.description} for p in perms]
+
+
+@roles_router.get("/{role_id}/permissions")
+def get_role_permissions(
+    role_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("roles:manage")),
+):
+    from app.modules.users.models import RolePermission, Permission
+    rps = db.query(RolePermission).filter_by(role_id=role_id).all()
+    perm_ids = [rp.permission_id for rp in rps]
+    perms = db.query(Permission).filter(Permission.id.in_(perm_ids)).all() if perm_ids else []
+    return [{"id": p.id, "key": p.key, "module": p.module, "description": p.description} for p in perms]
+
+
+@roles_router.put("/{role_id}/permissions")
+def set_role_permissions(
+    role_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("roles:manage")),
+):
+    from app.modules.users.models import RolePermission, Permission, Role
+    from datetime import datetime
+    role = db.query(Role).filter_by(id=role_id, deleted_at=None).first()
+    if not role:
+        raise HTTPException(404, "Role not found")
+    permission_keys = body.get("permission_keys", [])
+    # Get permission ids from keys
+    perms = db.query(Permission).filter(Permission.key.in_(permission_keys)).all()
+    perm_ids = {p.id for p in perms}
+    # Remove all existing
+    db.query(RolePermission).filter_by(role_id=role_id).delete()
+    # Add new ones
+    for perm_id in perm_ids:
+        rp = RolePermission(role_id=role_id, permission_id=perm_id, granted_by=current_user.id)
+        db.add(rp)
+    db.commit()
+    return {"role_id": role_id, "permissions": permission_keys}
+

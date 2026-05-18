@@ -248,8 +248,8 @@ def create_user(db: Session, data: dict, actor: User) -> User:
     payload = {k: v for k, v in data.items() if k != "password"}
     payload["hashed_password"] = hash_password(data["password"])
     payload["created_by"] = actor.id
-    # Non-superadmin can only create users in their own company (ACC-004)
-    if not actor.is_superadmin:
+    # Always set company_id — superadmin defaults to their own company
+    if "company_id" not in payload or not payload.get("company_id"):
         payload["company_id"] = actor.company_id
     user = User(**payload)
     db.add(user)
