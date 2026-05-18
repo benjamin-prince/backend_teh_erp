@@ -18,7 +18,9 @@ Public whitelist (ACC-008):
 """
 import logging
 from contextlib import asynccontextmanager
-
+from app.modules.service_projects.models import (  # noqa: F401
+    ServiceType, ServiceProject, ServiceMilestone
+)
 from fastapi import FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
@@ -53,11 +55,12 @@ from app.modules.commissions.models import (  # noqa: F401
     CommissionPartner, Commission, CommissionPayout, CommissionDispute
 )
 from app.modules.finance.models import (  # noqa: F401
-    Invoice, Payment, CashSession, Expense
+    Invoice, Payment, CashSession, Expense, Debt, DebtPayment
 )
 from app.modules.insurance.models import (  # noqa: F401
     InsurancePlan, InsurancePolicy, InsuranceClaim
 )
+from app.modules.finance.extended_models import Location, MoneyAccount, IncomeRecord, FinanceExpense, Receivable, BudgetLine  # noqa: F401
 
 from app.modules.companies.router import router as companies_router
 from app.modules.users.router import auth_router, protected_auth_router, users_router, roles_router
@@ -69,6 +72,10 @@ from app.modules.infrastructure_services.router import router as infra_router
 from app.modules.commissions.router import router as commissions_router
 from app.modules.finance.router import router as finance_router
 from app.modules.insurance.router import router as insurance_router
+from app.modules.containers.router import router as containers_router  # ← NEW
+from app.modules.service_projects.router import router as service_projects_router
+from app.modules.service_projects.service_types_router import router as service_types_router
+from app.modules.finance.extended_router import router as finance_extended_router
 
 logger = logging.getLogger("tehtek")
 
@@ -107,7 +114,7 @@ app = FastAPI(
     title="TEHTEK ERP API",
     description="TEHTEK IT Services — Cargo, Retail, Infrastructure",
     version="1.3.0",
-    docs_url="/api/docs" if settings.DEBUG else None,
+    docs_url="/api/docs", # if settings.DEBUG else None,
     redoc_url="/api/redoc" if settings.DEBUG else None,
     openapi_url="/api/openapi.json" if settings.DEBUG else None,
     lifespan=lifespan,
@@ -162,5 +169,9 @@ app.include_router(stock_router)
 app.include_router(orders_router)
 app.include_router(infra_router)
 app.include_router(commissions_router)
+app.include_router(finance_extended_router)
 app.include_router(finance_router)
 app.include_router(insurance_router)
+app.include_router(containers_router)  # ← ADD THIS
+app.include_router(service_projects_router)
+app.include_router(service_types_router)

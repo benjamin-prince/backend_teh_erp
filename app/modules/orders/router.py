@@ -97,6 +97,7 @@ def get_order(order_id: int, db: Session = Depends(get_db), _=Depends(require_pe
     o = db.query(Order).filter_by(id=order_id, deleted_at=None).first()
     if not o:
         raise HTTPException(404, "Order not found")
+    _ = o.items  # force lazy load
     return o
 
 @router.post("/orders/{order_id}/confirm")
@@ -107,7 +108,7 @@ def confirm_order(
     o = db.query(Order).filter_by(id=order_id).first()
     if not o:
         raise HTTPException(404, "Order not found")
-    o.status = OrderStatus.confirmed
+    o.status = OrderStatus.proforma_sent
     o.updated_at = datetime.utcnow()
     db.commit()
     return o
@@ -156,3 +157,55 @@ def resolve_exception(
     exc.resolved_at = datetime.utcnow()
     db.commit()
     return exc
+
+
+class OrderUpdate(BaseModel):
+    status: Optional[str] = None
+    apply_tva: Optional[bool] = None
+    notes: Optional[str] = None
+    delivery_address: Optional[str] = None
+
+class SkipBrBody(BaseModel):
+    reason: str
+
+@router.patch("/orders/{order_id}")
+def update_order(
+    order_id: int, body: OrderUpdate, db: Session = Depends(get_db),
+    current_user=Depends(require_permission("orders:update")),
+):
+    o = db.query(Order).filter_by(id=order_id, deleted_at=None).first()
+    if not o:
+        raise HTTPException(404, "Order not found")
+    if body.status is not None:
+        valid = ["draft","proforma_sent","confirmed","bl_sent","br_received","invoiced","delivered","cancelled"]
+        if body.status not in valid:
+            raise HTTPException(400, f"Invalid status: {body.status}")
+        o.status = body.status
+    if body.apply_tva is not None:
+        subtotal = float(o.subtotal or 0)
+        o.tax_amount = round(subtotal * 0.1925, 2) if body.apply_tva else 0
+        o.total = subtotal + float(o.tax_amount) - float(o.discount_amount or 0)
+    if body.notes is not None:
+        o.notes = body.notes
+    if body.delivery_address is not None:
+        o.delivery_address = body.delivery_address
+    o.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(o)
+    return o
+
+@router.post("/orders/{order_id}/skip-br")
+def skip_br(
+    order_id: int, body: SkipBrBody, db: Session = Depends(get_db),
+    current_user=Depends(require_permission("orders:approve")),
+):
+    o = db.query(Order).filter_by(id=order_id, deleted_at=None).first()
+    if not o:
+        raise HTTPException(404, "Order not found")
+    o.skip_br = True
+    o.skip_br_reason = body.reason
+    o.skip_br_approved_by = current_user.id
+    o.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(o)
+    return o

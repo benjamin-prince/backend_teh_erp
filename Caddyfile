@@ -5,10 +5,10 @@ api.tehtek.com {
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
         -Server
-        Access-Control-Allow-Origin "https://app.tehtek.com"
+        Access-Control-Allow-Origin "*"
         Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
         Access-Control-Allow-Headers "Authorization, Content-Type, Accept"
-        Access-Control-Allow-Credentials "true"
+        # Access-Control-Allow-Credentials "true"
         Access-Control-Max-Age "86400"
     }
 

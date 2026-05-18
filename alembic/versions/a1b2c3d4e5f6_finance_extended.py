@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = "a1b2c3d4e5f6"
-down_revision = "<replace_with_your_last_revision_id>"
+down_revision = "ed56daa408ae"
 branch_labels = None
 depends_on = None
 
@@ -395,7 +395,6 @@ def downgrade() -> None:
     op.drop_table("autopark_records")
     op.drop_table("vehicles")
     op.drop_table("budget_lines")
-    op.drop_table("receivable_payments")
     op.drop_table("receivable_payments")
     op.drop_table("receivables")
     op.drop_table("debt_payments")

@@ -393,18 +393,14 @@ class OrderType(str, Enum):
     special_order  = "special_order"
 
 class OrderStatus(str, Enum):
-    draft               = "draft"
-    pending             = "pending"
-    confirmed           = "confirmed"
-    deposit_required    = "deposit_required"
-    deposit_paid        = "deposit_paid"
-    processing          = "processing"
-    ready               = "ready"
-    shipped             = "shipped"
-    delivered           = "delivered"
-    cancelled           = "cancelled"
-    on_hold             = "on_hold"
-    reservation_expired = "reservation_expired"
+    draft          = "draft"
+    proforma_sent  = "proforma_sent"
+    confirmed      = "confirmed"
+    bl_sent        = "bl_sent"
+    br_received    = "br_received"
+    invoiced       = "invoiced"
+    delivered      = "delivered"
+    cancelled      = "cancelled"
 
 class ReservationStatus(str, Enum):
     active    = "active"

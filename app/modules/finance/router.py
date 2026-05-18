@@ -279,3 +279,296 @@ def list_expenses(
         Expense.company_id == current_user.company_id,
         Expense.deleted_at.is_(None),
     ).offset(skip).limit(limit).all()
+
+
+@router.post("/orders/{order_id}/invoice", status_code=201)
+def generate_invoice_from_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:invoices")),
+):
+    from app.modules.orders.models import Order as OrderModel
+    o = db.query(OrderModel).filter_by(id=order_id, deleted_at=None).first()
+    if not o:
+        raise HTTPException(404, "Order not found")
+    existing = db.query(Invoice).filter_by(ref_model="order", ref_id=order_id, deleted_at=None).first()
+    if existing:
+        return existing
+    number = next_sequence(db, SequenceType.invoice_number)
+    import json as _json
+    line_items = [
+        {
+            "description": item.description or "",
+            "quantity": float(item.quantity),
+            "unit_price": float(item.unit_price),
+            "total": float(item.line_total),
+        }
+        for item in (o.items or [])
+    ]
+    inv = Invoice(
+        company_id=current_user.company_id,
+        invoice_number=number,
+        invoice_type="sale",
+        customer_id=o.customer_id,
+        ref_model="order",
+        ref_id=o.id,
+        subtotal=float(o.subtotal or 0),
+        tax_amount=float(o.tax_amount or 0),
+        discount_amount=float(o.discount_amount or 0),
+        total=float(o.total or 0),
+        balance_due=float(o.total or 0),
+        notes=o.notes,
+        line_items_json=_json.dumps(line_items),
+        created_by=current_user.id,
+    )
+    db.add(inv)
+    db.commit()
+    db.refresh(inv)
+    return inv
+
+@router.get("/orders/{order_id}/invoice")
+def get_invoice_by_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("finance:invoices")),
+):
+    inv = db.query(Invoice).filter_by(ref_model="order", ref_id=order_id, deleted_at=None).first()
+    if not inv:
+        raise HTTPException(404, "No invoice for this order")
+    return inv
+
+
+# ── Debt (added by install_debt.sh) ──────────────────────────────────────────
+
+from app.modules.finance.models import Debt, DebtPayment
+
+
+class DebtCreate(BaseModel):
+    creditor_name:       str
+    creditor_type:       str                    # bank|supplier|landlord|individual|other
+    debt_type:           str             = "loan"   # loan | recurring
+    purpose:             str
+    ref_model:           Optional[str]  = None
+    ref_id:              Optional[int]  = None
+    ref_label:           Optional[str]  = None
+    principal:           float
+    outstanding:         Optional[float] = None
+    monthly_payment:     Optional[float] = None  # frontend alias → installment_amount
+    installment_amount:  Optional[float] = None
+    interest_rate:       Optional[float] = None
+    currency:            str             = "XAF"
+    repayment_frequency: str             = "monthly"
+    start_date:          datetime
+    end_date:            Optional[datetime] = None  # frontend alias → deadline_date
+    deadline_date:       Optional[datetime] = None
+    next_due_date:       Optional[datetime] = None
+    status:              str             = "active"
+    notes:               Optional[str]   = None
+
+
+class DebtUpdate(BaseModel):
+    creditor_name:       Optional[str]      = None
+    creditor_type:       Optional[str]      = None
+    debt_type:           Optional[str]      = None
+    purpose:             Optional[str]      = None
+    ref_model:           Optional[str]      = None
+    ref_label:           Optional[str]      = None
+    outstanding:         Optional[float]    = None
+    monthly_payment:     Optional[float]    = None
+    installment_amount:  Optional[float]    = None
+    interest_rate:       Optional[float]    = None
+    repayment_frequency: Optional[str]      = None
+    end_date:            Optional[datetime] = None
+    deadline_date:       Optional[datetime] = None
+    next_due_date:       Optional[datetime] = None
+    status:              Optional[str]      = None
+    notes:               Optional[str]      = None
+
+
+class DebtPaymentCreate(BaseModel):
+    amount:         float
+    notes:          Optional[str] = None
+    payment_method: str           = "bank_transfer"
+    reference:      Optional[str] = None
+
+
+def _debt_number(db: Session) -> str:
+    from sqlalchemy import extract
+    from sqlalchemy import func as _f
+    year = datetime.utcnow().year
+    n = db.query(_f.count(Debt.id)).filter(
+        extract("year", Debt.created_at) == year
+    ).scalar() or 0
+    return f"DBT-{year}-{str(n + 1).zfill(4)}"
+
+
+@router.get("/debt")
+def list_debts(
+    status: Optional[str] = None,
+    skip:   int = 0,
+    limit:  int = 100,
+    db:     Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:debt")),
+):
+    q = db.query(Debt).filter(
+        Debt.company_id == current_user.company_id,
+        Debt.deleted_at.is_(None),
+    )
+    if status:
+        q = q.filter(Debt.status == status)
+    return (
+        q.order_by(Debt.next_due_date.asc().nulls_last(), Debt.created_at.desc())
+        .offset(skip).limit(limit).all()
+    )
+
+
+@router.post("/debt", status_code=201)
+def create_debt(
+    body: DebtCreate,
+    db:   Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:debt")),
+):
+    installment = body.installment_amount or body.monthly_payment or 0
+    deadline    = body.deadline_date or body.end_date
+    if not deadline:
+        raise HTTPException(400, "deadline_date (or end_date) is required")
+    outstanding = body.outstanding if body.outstanding is not None else body.principal
+    d = Debt(
+        company_id=current_user.company_id,
+        debt_number=_debt_number(db),
+        creditor_name=body.creditor_name,
+        creditor_type=body.creditor_type,
+        debt_type=body.debt_type,
+        purpose=body.purpose,
+        ref_model=body.ref_model,
+        ref_id=body.ref_id,
+        ref_label=body.ref_label,
+        principal=body.principal,
+        outstanding=outstanding,
+        total_paid=0,
+        installment_amount=installment,
+        interest_rate=body.interest_rate,
+        currency=body.currency,
+        repayment_frequency=body.repayment_frequency,
+        start_date=body.start_date,
+        deadline_date=deadline,
+        end_date=body.end_date,
+        next_due_date=body.next_due_date,
+        status=body.status,
+        notes=body.notes,
+        created_by=current_user.id,
+    )
+    db.add(d)
+    db.commit()
+    db.refresh(d)
+    return d
+
+
+@router.get("/debt/{debt_id}")
+def get_debt(
+    debt_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:debt")),
+):
+    d = db.query(Debt).filter_by(
+        id=debt_id, company_id=current_user.company_id, deleted_at=None
+    ).first()
+    if not d:
+        raise HTTPException(404, "Debt not found")
+    return d
+
+
+@router.patch("/debt/{debt_id}")
+def update_debt(
+    debt_id: int,
+    body: DebtUpdate,
+    db:   Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:debt")),
+):
+    d = db.query(Debt).filter_by(
+        id=debt_id, company_id=current_user.company_id, deleted_at=None
+    ).first()
+    if not d:
+        raise HTTPException(404, "Debt not found")
+    patch = body.model_dump(exclude_unset=True)
+    # Resolve aliases
+    if "monthly_payment" in patch and "installment_amount" not in patch:
+        patch["installment_amount"] = patch.pop("monthly_payment")
+    else:
+        patch.pop("monthly_payment", None)
+    if "end_date" in patch and "deadline_date" not in patch:
+        patch["deadline_date"] = patch.pop("end_date")
+    for k, v in patch.items():
+        if hasattr(d, k):
+            setattr(d, k, v)
+    d.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(d)
+    return d
+
+
+@router.delete("/debt/{debt_id}", status_code=204)
+def delete_debt(
+    debt_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:debt")),
+):
+    d = db.query(Debt).filter_by(
+        id=debt_id, company_id=current_user.company_id, deleted_at=None
+    ).first()
+    if not d:
+        raise HTTPException(404, "Debt not found")
+    d.deleted_at = datetime.utcnow()
+    db.commit()
+
+
+@router.post("/debt/{debt_id}/payment")
+def record_debt_payment(
+    debt_id: int,
+    body: DebtPaymentCreate,
+    db:   Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:debt")),
+):
+    d = db.query(Debt).filter_by(
+        id=debt_id, company_id=current_user.company_id, deleted_at=None
+    ).first()
+    if not d:
+        raise HTTPException(404, "Debt not found")
+    pay = DebtPayment(
+        debt_id=d.id,
+        payment_date=datetime.utcnow(),
+        amount=body.amount,
+        payment_method=body.payment_method,
+        reference=body.reference,
+        notes=body.notes,
+        created_by=current_user.id,
+    )
+    db.add(pay)
+    d.outstanding       = max(0, float(d.outstanding) - body.amount)
+    d.total_paid        = float(d.total_paid or 0) + body.amount
+    d.last_payment_date = datetime.utcnow()
+    if d.outstanding <= 0:
+        d.status = "paid_off"
+    d.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(d)
+    return d
+
+
+@router.get("/debt/{debt_id}/payments")
+def list_debt_payments(
+    debt_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:debt")),
+):
+    d = db.query(Debt).filter_by(
+        id=debt_id, company_id=current_user.company_id, deleted_at=None
+    ).first()
+    if not d:
+        raise HTTPException(404, "Debt not found")
+    return (
+        db.query(DebtPayment)
+        .filter_by(debt_id=d.id)
+        .order_by(DebtPayment.payment_date.desc())
+        .all()
+    )

@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "TEHTEK ERP API"
     APP_VERSION: str = "2.0.0"
     APP_ENV: str = "production"
-    DEBUG: bool = False
+    DEBUG: bool = True
 
     # Security
     MAX_LOGIN_ATTEMPTS: int = 5
