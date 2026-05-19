@@ -60,7 +60,7 @@ from app.modules.finance.models import (  # noqa: F401
 from app.modules.insurance.models import (  # noqa: F401
     InsurancePlan, InsurancePolicy, InsuranceClaim
 )
-from app.modules.finance.extended_models import Location, MoneyAccount, IncomeRecord, FinanceExpense, Receivable, BudgetLine  # noqa: F401
+from app.modules.finance.extended_models import Location, MoneyAccount, IncomeRecord, FinanceExpense, Receivable, BudgetLine
 
 from app.modules.companies.router import router as companies_router
 from app.modules.users.router import auth_router, protected_auth_router, users_router, roles_router
@@ -76,6 +76,7 @@ from app.modules.containers.router import router as containers_router  # ← NEW
 from app.modules.service_projects.router import router as service_projects_router
 from app.modules.service_projects.service_types_router import router as service_types_router
 from app.modules.finance.extended_router import router as finance_extended_router
+from app.modules.personal.models import routes as personal_router  # ← NEW
 
 logger = logging.getLogger("tehtek")
 
@@ -175,3 +176,4 @@ app.include_router(insurance_router)
 app.include_router(containers_router)  # ← ADD THIS
 app.include_router(service_projects_router)
 app.include_router(service_types_router)
+app.include_router(personal_router)
