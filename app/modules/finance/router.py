@@ -18,6 +18,7 @@ router = APIRouter(
 )
 
 
+
 class InvoiceCreate(BaseModel):
     invoice_type: str
     customer_id: Optional[int] = None
@@ -572,3 +573,181 @@ def list_debt_payments(
         .order_by(DebtPayment.payment_date.desc())
         .all()
     )
+
+
+# ── Append this block to app/modules/finance/router.py ───────────────────────
+# Add the import at the top of the router file alongside the other model imports:
+#   from app.modules.finance.models import ..., MoneyAccount
+
+from app.modules.finance.models import MoneyAccount
+
+
+# ── Pydantic schemas ──────────────────────────────────────────────────────────
+
+class MoneyAccountCreate(BaseModel):
+    name:            str
+    account_type:    str   = "cash"          # cash | bank | mobile_money | other
+    currency:        str   = "XAF"
+    opening_balance: float = 0.0
+    notes:           Optional[str] = None
+
+
+class MoneyAccountUpdate(BaseModel):
+    name:         Optional[str]   = None
+    account_type: Optional[str]   = None
+    currency:     Optional[str]   = None
+    notes:        Optional[str]   = None
+
+
+class MoneyAccountAdjust(BaseModel):
+    """Manual balance correction (audit trail via notes)."""
+    new_balance: float
+    notes:       str
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _get_account_or_404(account_id: int, company_id: int, db: Session) -> MoneyAccount:
+    acct = db.query(MoneyAccount).filter_by(
+        id=account_id, company_id=company_id, deleted_at=None
+    ).first()
+    if not acct:
+        raise HTTPException(404, "Money account not found")
+    return acct
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.get("/accounts")
+def list_money_accounts(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    """
+    Return all active money accounts for the company plus a
+    summary breakdown by type (used by the KPI cards on the frontend).
+    """
+    accounts = (
+        db.query(MoneyAccount)
+        .filter_by(company_id=current_user.company_id, deleted_at=None)
+        .order_by(MoneyAccount.account_type, MoneyAccount.name)
+        .all()
+    )
+
+    # Aggregate balances per type for the summary cards
+    summary: dict[str, float] = {"cash": 0.0, "bank": 0.0, "mobile_money": 0.0, "other": 0.0}
+    for a in accounts:
+        key = a.account_type if a.account_type in summary else "other"
+        summary[key] += a.balance
+
+    total_liquid = sum(summary.values())
+
+    return {
+        "accounts": accounts,
+        "summary": {
+            "total_liquid":  total_liquid,
+            "cash":          summary["cash"],
+            "bank":          summary["bank"],
+            "mobile_money":  summary["mobile_money"],
+            "other":         summary["other"],
+        },
+    }
+
+
+@router.post("/accounts", status_code=201)
+def create_money_account(
+    body: MoneyAccountCreate,
+    db:   Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    """Create a new money account (cash drawer, bank account, MoMo wallet…)."""
+    # Prevent duplicate names within the same company
+    existing = db.query(MoneyAccount).filter_by(
+        company_id=current_user.company_id,
+        name=body.name,
+        deleted_at=None,
+    ).first()
+    if existing:
+        raise HTTPException(400, f"An account named '{body.name}' already exists")
+
+    acct = MoneyAccount(
+        company_id=current_user.company_id,
+        name=body.name,
+        account_type=body.account_type,
+        currency=body.currency,
+        opening_balance=body.opening_balance,
+        balance=body.opening_balance,   # balance starts at opening_balance
+        notes=body.notes,
+        created_by=current_user.id,
+    )
+    db.add(acct)
+    db.commit()
+    db.refresh(acct)
+    return acct
+
+
+@router.get("/accounts/{account_id}")
+def get_money_account(
+    account_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    return _get_account_or_404(account_id, current_user.company_id, db)
+
+
+@router.patch("/accounts/{account_id}")
+def update_money_account(
+    account_id: int,
+    body: MoneyAccountUpdate,
+    db:   Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    acct = _get_account_or_404(account_id, current_user.company_id, db)
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(acct, k, v)
+    acct.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(acct)
+    return acct
+
+
+@router.post("/accounts/{account_id}/adjust")
+def adjust_account_balance(
+    account_id: int,
+    body: MoneyAccountAdjust,
+    db:   Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    """
+    Manual balance correction (e.g. after physical cash count).
+    The old balance is preserved in the notes for audit purposes.
+    """
+    acct = _get_account_or_404(account_id, current_user.company_id, db)
+    old_balance = acct.balance
+    acct.balance    = body.new_balance
+    acct.notes      = (
+        f"[Adjusted {datetime.utcnow().date()} by user {current_user.id}] "
+        f"{old_balance} → {body.new_balance}. {body.notes}\n"
+        + (acct.notes or "")
+    )
+    acct.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(acct)
+    return acct
+
+
+@router.delete("/accounts/{account_id}", status_code=204)
+def delete_money_account(
+    account_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    acct = _get_account_or_404(account_id, current_user.company_id, db)
+    if acct.balance != 0:
+        raise HTTPException(
+            400,
+            f"Cannot delete account with a non-zero balance ({acct.balance} {acct.currency}). "
+            "Transfer or adjust to 0 first."
+        )
+    acct.deleted_at = datetime.utcnow()
+    db.commit()
