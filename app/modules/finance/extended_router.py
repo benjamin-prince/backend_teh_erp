@@ -830,3 +830,167 @@ def delete_budget(
         raise HTTPException(404, "Budget line not found")
     db.delete(line)
     db.commit()
+
+
+# ── Append to app/modules/finance/extended_router.py ─────────────────────────
+# Also add MoneyAccount to the import at the top of this file, e.g.:
+#   from app.modules.finance.extended_models import Debt, DebtPayment, MoneyAccount
+
+from app.modules.finance.extended_models import MoneyAccount
+
+
+# ── Pydantic schemas ──────────────────────────────────────────────────────────
+
+class MoneyAccountCreate(BaseModel):
+    name:            str
+    account_type:    str   = "cash"   # cash | bank | mobile_money | other
+    currency:        str   = "XAF"
+    opening_balance: float = 0.0
+    notes:           Optional[str] = None
+
+
+class MoneyAccountUpdate(BaseModel):
+    name:         Optional[str]   = None
+    account_type: Optional[str]   = None
+    currency:     Optional[str]   = None
+    notes:        Optional[str]   = None
+
+
+class MoneyAccountAdjust(BaseModel):
+    new_balance: float
+    notes:       str
+
+
+# ── Helper ────────────────────────────────────────────────────────────────────
+
+def _get_account_or_404(account_id: int, company_id: int, db: Session) -> MoneyAccount:
+    acct = db.query(MoneyAccount).filter_by(
+        id=account_id, company_id=company_id, deleted_at=None
+    ).first()
+    if not acct:
+        raise HTTPException(404, "Money account not found")
+    return acct
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.get("/accounts")
+def list_money_accounts(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    accounts = (
+        db.query(MoneyAccount)
+        .filter_by(company_id=current_user.company_id, deleted_at=None)
+        .order_by(MoneyAccount.account_type, MoneyAccount.name)
+        .all()
+    )
+
+    summary: dict[str, float] = {
+        "cash": 0.0, "bank": 0.0, "mobile_money": 0.0, "other": 0.0
+    }
+    for a in accounts:
+        key = a.account_type if a.account_type in summary else "other"
+        summary[key] += a.balance
+
+    return {
+        "accounts": accounts,
+        "summary": {
+            "total_liquid": sum(summary.values()),
+            **summary,
+        },
+    }
+
+
+@router.post("/accounts", status_code=201)
+def create_money_account(
+    body: MoneyAccountCreate,
+    db:   Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    existing = db.query(MoneyAccount).filter_by(
+        company_id=current_user.company_id,
+        name=body.name,
+        deleted_at=None,
+    ).first()
+    if existing:
+        raise HTTPException(400, f"An account named '{body.name}' already exists")
+
+    acct = MoneyAccount(
+        company_id=current_user.company_id,
+        name=body.name,
+        account_type=body.account_type,
+        currency=body.currency,
+        opening_balance=body.opening_balance,
+        balance=body.opening_balance,
+        notes=body.notes,
+        created_by=current_user.id,
+    )
+    db.add(acct)
+    db.commit()
+    db.refresh(acct)
+    return acct
+
+
+@router.get("/accounts/{account_id}")
+def get_money_account(
+    account_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    return _get_account_or_404(account_id, current_user.company_id, db)
+
+
+@router.patch("/accounts/{account_id}")
+def update_money_account(
+    account_id: int,
+    body: MoneyAccountUpdate,
+    db:   Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    acct = _get_account_or_404(account_id, current_user.company_id, db)
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(acct, k, v)
+    acct.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(acct)
+    return acct
+
+
+@router.post("/accounts/{account_id}/adjust")
+def adjust_account_balance(
+    account_id: int,
+    body: MoneyAccountAdjust,
+    db:   Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    """Manual balance correction after physical cash count."""
+    acct = _get_account_or_404(account_id, current_user.company_id, db)
+    old = acct.balance
+    acct.balance = body.new_balance
+    acct.notes = (
+        f"[Adjusted {datetime.utcnow().date()} by user {current_user.id}] "
+        f"{old} → {body.new_balance}. {body.notes}\n"
+        + (acct.notes or "")
+    )
+    acct.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(acct)
+    return acct
+
+
+@router.delete("/accounts/{account_id}", status_code=204)
+def delete_money_account(
+    account_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:accounts")),
+):
+    acct = _get_account_or_404(account_id, current_user.company_id, db)
+    if acct.balance != 0:
+        raise HTTPException(
+            400,
+            f"Cannot delete account with a non-zero balance "
+            f"({acct.balance} {acct.currency}). Adjust to 0 first."
+        )
+    acct.deleted_at = datetime.utcnow()
+    db.commit()

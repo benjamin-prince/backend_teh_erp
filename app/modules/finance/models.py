@@ -2,37 +2,13 @@
 from datetime import datetime
 from sqlalchemy import (
     Boolean, Column, DateTime, ForeignKey, Integer,
-    Numeric, String, Text, Index, Float, func,
+    Numeric, String, Text, Index
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.core.enums import (
     InvoiceType, InvoiceStatus, PaymentMethod, PaymentStatus, CashSessionStatus
 )
-
-
-
-class MoneyAccount(Base):
-    __tablename__ = "money_accounts"
-
-    id               = Column(Integer, primary_key=True, index=True)
-    company_id       = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
-
-    name             = Column(String(120), nullable=False)
-    # cash | bank | mobile_money | other
-    account_type     = Column(String(40), nullable=False, default="cash")
-    currency         = Column(String(10), nullable=False, default="XAF")
-
-    opening_balance  = Column(Float, nullable=False, default=0.0)
-    # running balance; updated on every confirmed payment / expense
-    balance          = Column(Float, nullable=False, default=0.0)
-
-    notes            = Column(Text, nullable=True)
-    created_by       = Column(Integer, ForeignKey("users.id"), nullable=True)
-
-    created_at       = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at       = Column(DateTime(timezone=True), onupdate=func.now())
-    deleted_at       = Column(DateTime(timezone=True), nullable=True)
 
 
 class Invoice(Base):
