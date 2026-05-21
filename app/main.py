@@ -76,7 +76,7 @@ from app.modules.containers.router import router as containers_router  # ← NEW
 from app.modules.service_projects.router import router as service_projects_router
 from app.modules.service_projects.service_types_router import router as service_types_router
 from app.modules.finance.extended_router import router as finance_extended_router
-from app.modules.personal.models import routes as personal_router  # ← NEW
+from app.modules.personal.router import router as personal_router  # ← NEW
 
 logger = logging.getLogger("tehtek")
 

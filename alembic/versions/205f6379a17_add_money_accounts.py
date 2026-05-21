@@ -8,7 +8,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision    = "6205f6379a17"
-down_revision = "cae57c24e7f5"   # ← last migration in your versions/ folder
+down_revision = "b7e3a1f92c08"   # ← last migration in your versions/ folder
 branch_labels = None
 depends_on    = None
 

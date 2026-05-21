@@ -1,6 +1,6 @@
 """TEHTEK — Finance Extended Models. New tables only."""
 from datetime import datetime
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import func, Boolean, Column, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -148,23 +148,3 @@ class BudgetLine(Base):
 
 # ── Append to app/modules/finance/extended_models.py ─────────────────────────
 
-class MoneyAccount(Base):
-    __tablename__ = "money_accounts"
-
-    id               = Column(Integer, primary_key=True, index=True)
-    company_id       = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
-
-    name             = Column(String(120), nullable=False)
-    # cash | bank | mobile_money | other
-    account_type     = Column(String(40), nullable=False, default="cash")
-    currency         = Column(String(10), nullable=False, default="XAF")
-
-    opening_balance  = Column(Float, nullable=False, default=0.0)
-    balance          = Column(Float, nullable=False, default=0.0)
-
-    notes            = Column(Text, nullable=True)
-    created_by       = Column(Integer, ForeignKey("users.id"), nullable=True)
-
-    created_at       = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at       = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
-    deleted_at       = Column(DateTime(timezone=True), nullable=True)

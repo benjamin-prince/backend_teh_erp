@@ -81,6 +81,7 @@ class Shipment(Base):
     deleted_at         = Column(DateTime, nullable=True)
 
     tracking_events = relationship("TrackingEvent", back_populates="shipment", lazy="select")
+    items           = relationship("ShipmentItem", back_populates="shipment", lazy="select", order_by="ShipmentItem.sort_order", cascade="all, delete-orphan")
     bag             = relationship("Bag", back_populates="shipments")
 
     __table_args__ = (
@@ -166,3 +167,19 @@ class PickupRequest(Base):
     status      = Column(String(30), default="pending")
     notes       = Column(Text, nullable=True)
     created_at  = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ShipmentItem(Base):
+    __tablename__ = "shipment_items"
+
+    id          = Column(Integer, primary_key=True)
+    shipment_id = Column(Integer, ForeignKey("shipments.id", ondelete="CASCADE"), nullable=False)
+    description = Column(String(500), nullable=False)
+    quantity    = Column(Numeric(10, 3), nullable=False, default=1)
+    unit        = Column(String(30), nullable=False, default="pcs")
+    weight_kg   = Column(Numeric(10, 3), nullable=True)
+    notes       = Column(Text, nullable=True)
+    sort_order  = Column(Integer, nullable=False, default=0)
+    created_at  = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    shipment = relationship("Shipment", back_populates="items")

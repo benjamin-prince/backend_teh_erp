@@ -67,9 +67,9 @@ class ExpenseCreate(BaseModel):
     date:             str
     description:      str
     category:         str
-    ref_model:        str
+    ref_model:        Optional[str] = None
     ref_id:           Optional[int] = None
-    ref_label:        str
+    ref_label:        Optional[str] = None
     amount:           float
     currency:         str = "XAF"
     exchange_rate:    float = 1.0
@@ -196,7 +196,15 @@ def list_income(
             )
         elif period == "year":
             q = q.filter(func.extract("year", IncomeRecord.date) == now.year)
-    return q.order_by(IncomeRecord.date.desc()).offset(skip).limit(limit).all()
+    records = q.order_by(IncomeRecord.date.desc()).offset(skip).limit(limit).all()
+    # Attach account name
+    for r in records:
+        if r.money_account_id:
+            acc = db.query(MoneyAccount).filter_by(id=r.money_account_id).first()
+            r.__dict__['money_account_name'] = acc.name if acc else None
+        else:
+            r.__dict__['money_account_name'] = None
+    return records
 
 
 @router.post("/income", status_code=201)
@@ -245,7 +253,7 @@ def get_income(
     db: Session = Depends(get_db),
     current_user=Depends(require_permission("finance:income")),
 ):
-    rec = db.query(IncomeRecord).filter_by(id=income_id, company_id=current_user.company_id, deleted_at=None).first()
+    rec = db.query(IncomeRecord).filter_by(id=income_id, company_id=current_user.company_id).first()
     if not rec:
         raise HTTPException(404, "Income entry not found")
     return rec
@@ -257,7 +265,7 @@ def delete_income(
     db: Session = Depends(get_db),
     current_user=Depends(require_permission("finance:income")),
 ):
-    rec = db.query(IncomeRecord).filter_by(id=income_id, company_id=current_user.company_id, deleted_at=None).first()
+    rec = db.query(IncomeRecord).filter_by(id=income_id, company_id=current_user.company_id).first()
     if not rec:
         raise HTTPException(404, "Income entry not found")
     rec.deleted_at = datetime.utcnow()
@@ -294,7 +302,14 @@ def list_finance_expenses(
             )
         elif period == "year":
             q = q.filter(func.extract("year", FinanceExpense.date) == now.year)
-    return q.order_by(FinanceExpense.date.desc()).offset(skip).limit(limit).all()
+    records = q.order_by(FinanceExpense.date.desc()).offset(skip).limit(limit).all()
+    for r in records:
+        if r.money_account_id:
+            acc = db.query(MoneyAccount).filter_by(id=r.money_account_id).first()
+            r.__dict__['money_account_name'] = acc.name if acc else None
+        else:
+            r.__dict__['money_account_name'] = None
+    return records
 
 
 @router.post("/expenses", status_code=201)
@@ -342,7 +357,7 @@ def delete_finance_expense(
     db: Session = Depends(get_db),
     current_user=Depends(require_permission("finance:expenses")),
 ):
-    rec = db.query(FinanceExpense).filter_by(id=expense_id, company_id=current_user.company_id, deleted_at=None).first()
+    rec = db.query(FinanceExpense).filter_by(id=expense_id, company_id=current_user.company_id, is_active=True).first()
     if not rec:
         raise HTTPException(404, "Expense not found")
     rec.deleted_at = datetime.utcnow()
@@ -428,16 +443,6 @@ def delete_location(
 # ══════════════════════════════════════════════════════════════════════════════
 # MONEY ACCOUNTS / BALANCES
 # ══════════════════════════════════════════════════════════════════════════════
-
-@router.get("/accounts")
-@router.get("/balances")
-def list_accounts(
-    db: Session = Depends(get_db),
-    current_user=Depends(require_permission("finance:accounts")),
-):
-    return db.query(MoneyAccount).filter_by(
-        company_id=current_user.company_id, is_active=True
-    ).all()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -851,7 +856,7 @@ class MoneyAccountCreate(BaseModel):
 
 class MoneyAccountUpdate(BaseModel):
     name:         Optional[str]   = None
-    account_type: Optional[str]   = None
+    type:         Optional[str]   = None
     currency:     Optional[str]   = None
     notes:        Optional[str]   = None
 
@@ -865,7 +870,7 @@ class MoneyAccountAdjust(BaseModel):
 
 def _get_account_or_404(account_id: int, company_id: int, db: Session) -> MoneyAccount:
     acct = db.query(MoneyAccount).filter_by(
-        id=account_id, company_id=company_id, deleted_at=None
+        id=account_id, company_id=company_id, is_active=True
     ).first()
     if not acct:
         raise HTTPException(404, "Money account not found")
@@ -881,8 +886,8 @@ def list_money_accounts(
 ):
     accounts = (
         db.query(MoneyAccount)
-        .filter_by(company_id=current_user.company_id, deleted_at=None)
-        .order_by(MoneyAccount.account_type, MoneyAccount.name)
+        .filter_by(company_id=current_user.company_id, is_active=True)
+        .order_by(MoneyAccount.type, MoneyAccount.name)
         .all()
     )
 
@@ -890,8 +895,8 @@ def list_money_accounts(
         "cash": 0.0, "bank": 0.0, "mobile_money": 0.0, "other": 0.0
     }
     for a in accounts:
-        key = a.account_type if a.account_type in summary else "other"
-        summary[key] += a.balance
+        key = a.type if a.type in summary else "other"
+        summary[key] += float(a.current_balance)
 
     return {
         "accounts": accounts,
@@ -911,7 +916,7 @@ def create_money_account(
     existing = db.query(MoneyAccount).filter_by(
         company_id=current_user.company_id,
         name=body.name,
-        deleted_at=None,
+        is_active=True,
     ).first()
     if existing:
         raise HTTPException(400, f"An account named '{body.name}' already exists")
@@ -919,12 +924,11 @@ def create_money_account(
     acct = MoneyAccount(
         company_id=current_user.company_id,
         name=body.name,
-        account_type=body.account_type,
+        type=body.account_type,
         currency=body.currency,
         opening_balance=body.opening_balance,
-        balance=body.opening_balance,
+        current_balance=body.opening_balance,
         notes=body.notes,
-        created_by=current_user.id,
     )
     db.add(acct)
     db.commit()
@@ -966,8 +970,8 @@ def adjust_account_balance(
 ):
     """Manual balance correction after physical cash count."""
     acct = _get_account_or_404(account_id, current_user.company_id, db)
-    old = acct.balance
-    acct.balance = body.new_balance
+    old = acct.current_balance
+    acct.current_balance = body.new_balance
     acct.notes = (
         f"[Adjusted {datetime.utcnow().date()} by user {current_user.id}] "
         f"{old} → {body.new_balance}. {body.notes}\n"
@@ -986,11 +990,11 @@ def delete_money_account(
     current_user=Depends(require_permission("finance:accounts")),
 ):
     acct = _get_account_or_404(account_id, current_user.company_id, db)
-    if acct.balance != 0:
+    if acct.current_balance != 0:
         raise HTTPException(
             400,
             f"Cannot delete account with a non-zero balance "
-            f"({acct.balance} {acct.currency}). Adjust to 0 first."
+            f"({acct.current_balance} {acct.currency}). Adjust to 0 first."
         )
-    acct.deleted_at = datetime.utcnow()
+    acct.is_active = False
     db.commit()

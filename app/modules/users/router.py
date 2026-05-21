@@ -30,7 +30,6 @@ def refresh(body: schemas.RefreshRequest, request: Request, db: Session = Depend
 @auth_router.post("/password-reset/request", status_code=202)
 def password_reset_request(body: schemas.PasswordResetRequest, db: Session = Depends(get_db)):
     controller.request_password_reset(db, body.email)
-    # Always 202 — don't reveal whether email exists
     return {"message": "If that email is registered, a reset link has been sent."}
 
 @auth_router.post("/password-reset/confirm", status_code=200)
@@ -71,7 +70,7 @@ def change_password(
     if not validate_password_strength(body.new_password):
         raise HTTPException(400, "New password too weak (min 8 chars, 1 uppercase, 1 digit)")
     current_user.hashed_password = hash_password(body.new_password)
-    current_user.must_change_password = False  # clear forced-change flag
+    current_user.must_change_password = False
     db.commit()
     return {"message": "Password changed successfully.", "must_change_password": False}
 
@@ -190,6 +189,19 @@ def list_roles(
         q = q.filter(Role.company_id == current_user.company_id)
     return q.all()
 
+# ── Static routes BEFORE /{role_id} dynamic routes ───────────────────────────
+
+@roles_router.get("/all-permissions")
+def list_all_permissions(
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("roles:manage")),
+):
+    from app.modules.users.models import Permission
+    perms = db.query(Permission).order_by(Permission.module, Permission.key).all()
+    return [{"id": p.id, "key": p.key, "module": p.module, "description": p.description} for p in perms]
+
+# ── Dynamic /{role_id} routes AFTER static routes ────────────────────────────
+
 @roles_router.delete("/{role_id}", status_code=204)
 def delete_role(
     role_id: int,
@@ -205,17 +217,6 @@ def delete_role(
     role.deleted_at = datetime.utcnow()
     db.commit()
 
-
-@roles_router.get("/all-permissions")
-def list_all_permissions(
-    db: Session = Depends(get_db),
-    _=Depends(require_permission("roles:manage")),
-):
-    from app.modules.users.models import Permission
-    perms = db.query(Permission).order_by(Permission.module, Permission.key).all()
-    return [{"id": p.id, "key": p.key, "module": p.module, "description": p.description} for p in perms]
-
-
 @roles_router.get("/{role_id}/permissions")
 def get_role_permissions(
     role_id: int,
@@ -227,7 +228,6 @@ def get_role_permissions(
     perm_ids = [rp.permission_id for rp in rps]
     perms = db.query(Permission).filter(Permission.id.in_(perm_ids)).all() if perm_ids else []
     return [{"id": p.id, "key": p.key, "module": p.module, "description": p.description} for p in perms]
-
 
 @roles_router.put("/{role_id}/permissions")
 def set_role_permissions(
@@ -242,15 +242,11 @@ def set_role_permissions(
     if not role:
         raise HTTPException(404, "Role not found")
     permission_keys = body.get("permission_keys", [])
-    # Get permission ids from keys
     perms = db.query(Permission).filter(Permission.key.in_(permission_keys)).all()
     perm_ids = {p.id for p in perms}
-    # Remove all existing
     db.query(RolePermission).filter_by(role_id=role_id).delete()
-    # Add new ones
     for perm_id in perm_ids:
         rp = RolePermission(role_id=role_id, permission_id=perm_id, granted_by=current_user.id)
         db.add(rp)
     db.commit()
     return {"role_id": role_id, "permissions": permission_keys}
-

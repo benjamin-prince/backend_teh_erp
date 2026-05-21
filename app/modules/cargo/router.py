@@ -287,3 +287,80 @@ def assign_carrier(
     bag.status = BagStatus.assigned_to_carrier
     db.commit()
     return assignment
+
+
+# ── Shipment Items ─────────────────────────────────────────────────────────────
+
+from pydantic import BaseModel as PydanticBase
+from typing import Optional as Opt
+
+class ShipmentItemIn(PydanticBase):
+    description: str
+    quantity:    float = 1
+    unit:        str   = "pcs"
+    weight_kg:   Opt[float] = None
+    notes:       Opt[str]   = None
+    sort_order:  int        = 0
+
+class ShipmentItemOut(PydanticBase):
+    model_config = {"from_attributes": True}
+    id:          int
+    shipment_id: int
+    description: str
+    quantity:    float
+    unit:        str
+    weight_kg:   Opt[float]
+    notes:       Opt[str]
+    sort_order:  int
+
+@router.get("/shipments/{shipment_id}/items", response_model=list[ShipmentItemOut])
+def list_shipment_items(
+    shipment_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    from app.modules.cargo.models import ShipmentItem
+    return db.query(ShipmentItem).filter_by(shipment_id=shipment_id).order_by(ShipmentItem.sort_order).all()
+
+@router.post("/shipments/{shipment_id}/items", response_model=ShipmentItemOut, status_code=201)
+def create_shipment_item(
+    shipment_id: int,
+    body: ShipmentItemIn,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    from app.modules.cargo.models import ShipmentItem
+    item = ShipmentItem(shipment_id=shipment_id, **body.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+@router.put("/shipments/{shipment_id}/items", response_model=list[ShipmentItemOut])
+def replace_shipment_items(
+    shipment_id: int,
+    body: list[ShipmentItemIn],
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    from app.modules.cargo.models import ShipmentItem
+    db.query(ShipmentItem).filter_by(shipment_id=shipment_id).delete()
+    items = [ShipmentItem(shipment_id=shipment_id, **it.model_dump()) for it in body]
+    db.add_all(items)
+    db.commit()
+    return db.query(ShipmentItem).filter_by(shipment_id=shipment_id).order_by(ShipmentItem.sort_order).all()
+
+@router.delete("/shipments/{shipment_id}/items/{item_id}", status_code=204)
+def delete_shipment_item(
+    shipment_id: int,
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    from app.modules.cargo.models import ShipmentItem
+    item = db.query(ShipmentItem).filter_by(id=item_id, shipment_id=shipment_id).first()
+    if not item:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Item not found")
+    db.delete(item)
+    db.commit()
