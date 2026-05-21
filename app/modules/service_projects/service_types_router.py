@@ -32,7 +32,7 @@ def list_service_types(
     limit:       int           = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
-    return ctrl.list_service_types(db, active_only=active_only)
+    return ctrl.list_service_types(db, active_only=active_only, category=category)
 
 
 @router.post("", response_model=ServiceTypeOut, status_code=201)

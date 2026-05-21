@@ -93,10 +93,16 @@ def _parse_date(v) -> Optional[datetime]:
 
 # ── ServiceType CRUD ──────────────────────────────────────────────────────────
 
-def list_service_types(db: Session, active_only: bool = False) -> List[ServiceType]:
+def list_service_types(
+    db: Session,
+    active_only: bool = False,
+    category: Optional[str] = None,
+) -> List[ServiceType]:
     q = db.query(ServiceType)
     if active_only:
         q = q.filter(ServiceType.is_active == True)  # noqa: E712
+    if category:
+        q = q.filter(ServiceType.category == category)
     return q.order_by(ServiceType.name).all()
 
 
@@ -143,6 +149,8 @@ def list_projects(
     db:          Session,
     customer_id: Optional[int]                  = None,
     status:      Optional[ServiceProjectStatus] = None,
+    category:    Optional[str]                  = None,
+    exclude_category: Optional[str]             = None,
     skip:        int = 0,
     limit:       int = 100,
 ) -> List[ServiceProject]:
@@ -151,6 +159,10 @@ def list_projects(
         q = q.filter(ServiceProject.customer_id == customer_id)
     if status:
         q = q.filter(ServiceProject.status == status)
+    if category:
+        q = q.filter(ServiceProject.category == category)
+    if exclude_category:
+        q = q.filter(ServiceProject.category != exclude_category)
     return q.order_by(ServiceProject.id.desc()).offset(skip).limit(limit).all()
 
 

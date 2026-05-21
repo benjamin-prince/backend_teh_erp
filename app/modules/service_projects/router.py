@@ -58,13 +58,23 @@ def delete_type(type_id: int, db: Session = Depends(get_db)):
 
 @router.get("", response_model=List[ServiceProjectOut])
 def list_projects(
-    customer_id: Optional[int]                  = Query(None),
-    status:      Optional[ServiceProjectStatus] = Query(None),
-    skip:        int = Query(0, ge=0),
-    limit:       int = Query(50, ge=1, le=200),
+    customer_id:      Optional[int]                  = Query(None),
+    status:           Optional[ServiceProjectStatus] = Query(None),
+    category:         Optional[str]                  = Query(None),
+    exclude_category: Optional[str]                  = Query(None),
+    skip:             int = Query(0, ge=0),
+    limit:            int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
-    return ctrl.list_projects(db, customer_id=customer_id, status=status, skip=skip, limit=limit)
+    return ctrl.list_projects(
+        db,
+        customer_id=customer_id,
+        status=status,
+        category=category,
+        exclude_category=exclude_category,
+        skip=skip,
+        limit=limit,
+    )
 
 
 @router.post("", response_model=ServiceProjectOut, status_code=201)

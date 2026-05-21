@@ -159,6 +159,7 @@ class ServiceProjectOut(BaseModel):
     customer_id:    int
     title:          str
     status:         ServiceProjectStatus
+    category:       ServiceCategory
 
     subtotal:        Decimal
     discount_amount: Decimal
