@@ -231,6 +231,48 @@ class DailySummaryOut(BaseModel):
         from_attributes = True
 
 
+# ── Purchase Commitment ───────────────────────────────────────────────────────
+
+class PurchaseCommitmentCreate(BaseModel):
+    item_name:   str
+    link:        Optional[str] = None
+    price:       Optional[float] = None
+    currency:    str = "XAF"
+    person_name: str
+    reason:      str
+    due_date:    Optional[date] = None
+    notes:       Optional[str] = None
+
+
+class PurchaseCommitmentUpdate(BaseModel):
+    item_name:   Optional[str] = None
+    link:        Optional[str] = None
+    price:       Optional[float] = None
+    currency:    Optional[str] = None
+    person_name: Optional[str] = None
+    reason:      Optional[str] = None
+    status:      Optional[str] = None
+    due_date:    Optional[date] = None
+    notes:       Optional[str] = None
+
+
+class PurchaseCommitmentOut(BaseModel):
+    id:          int
+    item_name:   str
+    link:        Optional[str]
+    price:       Optional[float]
+    currency:    str
+    person_name: str
+    reason:      str
+    status:      str
+    due_date:    Optional[date]
+    notes:       Optional[str]
+    created_at:  datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ── Dashboard Stats ───────────────────────────────────────────────────────────
 
 class PersonalDashboardStats(BaseModel):

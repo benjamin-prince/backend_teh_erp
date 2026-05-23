@@ -420,3 +420,60 @@ def upsert_daily(
     db.commit()
     db.refresh(obj)
     return obj
+
+
+# ── Purchase Commitments ──────────────────────────────────────────────────────
+
+@router.get("/purchases", response_model=List[schemas.PurchaseCommitmentOut])
+def list_purchases(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    q = db.query(models.PurchaseCommitment)
+    if status:
+        q = q.filter(models.PurchaseCommitment.status == status)
+    return q.order_by(models.PurchaseCommitment.created_at.desc()).all()
+
+
+@router.post("/purchases", response_model=schemas.PurchaseCommitmentOut, status_code=201)
+def create_purchase(
+    data: schemas.PurchaseCommitmentCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    obj = models.PurchaseCommitment(**data.dict())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.patch("/purchases/{purchase_id}", response_model=schemas.PurchaseCommitmentOut)
+def update_purchase(
+    purchase_id: int,
+    data: schemas.PurchaseCommitmentUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    obj = db.query(models.PurchaseCommitment).filter(models.PurchaseCommitment.id == purchase_id).first()
+    if not obj:
+        raise HTTPException(404, "Purchase commitment not found")
+    for k, v in data.dict(exclude_unset=True).items():
+        setattr(obj, k, v)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.delete("/purchases/{purchase_id}", status_code=204)
+def delete_purchase(
+    purchase_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    obj = db.query(models.PurchaseCommitment).filter(models.PurchaseCommitment.id == purchase_id).first()
+    if not obj:
+        raise HTTPException(404, "Purchase commitment not found")
+    db.delete(obj)
+    db.commit()

@@ -141,6 +141,30 @@ class PersonalGoal(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
+class PurchaseCommitmentStatus(str, enum.Enum):
+    PENDING   = "pending"    # not yet bought
+    BOUGHT    = "bought"     # purchased
+    CANCELLED = "cancelled"  # decided not to buy
+
+
+class PurchaseCommitment(Base):
+    """Things I committed to buy for someone."""
+    __tablename__ = "purchase_commitments"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    item_name   = Column(String(255), nullable=False)
+    link        = Column(String(1000), nullable=True)
+    price       = Column(Float, nullable=True)
+    currency    = Column(String(10), nullable=False, default="XAF")
+    person_name = Column(String(200), nullable=False)
+    reason      = Column(String(500), nullable=False)  # gift, will pay back, promise…
+    status      = Column(String(20), nullable=False, default=PurchaseCommitmentStatus.PENDING)
+    due_date    = Column(Date, nullable=True)
+    notes       = Column(Text, nullable=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at  = Column(DateTime(timezone=True), onupdate=func.now())
+
+
 class DailySummary(Base):
     """Auto-computed or manually enriched daily note"""
     __tablename__ = "personal_daily_summary"
