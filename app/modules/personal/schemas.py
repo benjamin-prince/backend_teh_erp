@@ -13,6 +13,7 @@ class PersonalExpenseCreate(BaseModel):
     date: date
     category: ExpenseCategory = ExpenseCategory.OTHER
     amount: float = Field(..., gt=0)
+    currency: str = "XAF"
     description: Optional[str] = None
     payment_method: PaymentMethod = PaymentMethod.CASH
     is_recurring: bool = False
@@ -23,6 +24,7 @@ class PersonalExpenseUpdate(BaseModel):
     date: Optional[date] = None
     category: Optional[ExpenseCategory] = None
     amount: Optional[float] = Field(None, gt=0)
+    currency: Optional[str] = None
     description: Optional[str] = None
     payment_method: Optional[PaymentMethod] = None
     is_recurring: Optional[bool] = None
@@ -34,6 +36,7 @@ class PersonalExpenseOut(BaseModel):
     date: date
     category: ExpenseCategory
     amount: float
+    currency: str
     description: Optional[str]
     payment_method: PaymentMethod
     is_recurring: bool
@@ -50,6 +53,7 @@ class PersonalIncomeCreate(BaseModel):
     date: date
     source: IncomeSource = IncomeSource.OTHER
     amount: float = Field(..., gt=0)
+    currency: str = "XAF"
     description: Optional[str] = None
     is_recurring: bool = False
 
@@ -58,6 +62,7 @@ class PersonalIncomeUpdate(BaseModel):
     date: Optional[date] = None
     source: Optional[IncomeSource] = None
     amount: Optional[float] = Field(None, gt=0)
+    currency: Optional[str] = None
     description: Optional[str] = None
     is_recurring: Optional[bool] = None
 
@@ -67,6 +72,7 @@ class PersonalIncomeOut(BaseModel):
     date: date
     source: IncomeSource
     amount: float
+    currency: str
     description: Optional[str]
     is_recurring: bool
     created_at: datetime

@@ -76,6 +76,7 @@ class ServiceProject(Base):
     end_date     = Column(DateTime, nullable=True)
     technician   = Column(String(120), nullable=True)
 
+    currency        = Column(String(10), nullable=False, default="XAF")
     subtotal        = Column(Numeric(14, 2), default=0, nullable=False)
     discount_amount = Column(Numeric(14, 2), default=0, nullable=False)
     tax_amount      = Column(Numeric(14, 2), default=0, nullable=False)

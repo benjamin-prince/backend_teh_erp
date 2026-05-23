@@ -31,11 +31,13 @@ class PartnerCreate(BaseModel):
     payment_method: Optional[str] = None
     mobile_money_number: Optional[str] = None
     default_rate_pct: Optional[float] = None
-    flat_rate_xaf: Optional[float] = None
+    flat_rate: Optional[float] = None
+    flat_rate_currency: str = "XAF"
 
 class CommissionCreate(BaseModel):
     partner_id: int
     commission_amount: float
+    currency: str = "XAF"
     ref_model: Optional[str] = None
     ref_id: Optional[int] = None
     ref_number: Optional[str] = None

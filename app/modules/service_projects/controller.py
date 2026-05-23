@@ -182,6 +182,7 @@ def create_project(db: Session, payload: ServiceProjectCreate) -> ServiceProject
         customer_id     = payload.customer_id,
         service_type_id = payload.service_type_id,
         category        = payload.category,
+        currency        = payload.currency,
         site_address    = payload.site_address,
         technician      = payload.technician,
         notes           = payload.notes,

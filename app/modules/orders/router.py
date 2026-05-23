@@ -27,6 +27,7 @@ class OrderItemIn(BaseModel):
 class OrderCreate(BaseModel):
     customer_id: int
     order_type: str = "sale_order"
+    currency: str = "XAF"
     items: List[OrderItemIn]
     tax_amount: float = 0
     discount_amount: float = 0
@@ -56,6 +57,7 @@ def create_order(
         order_number=order_number,
         customer_id=body.customer_id,
         order_type=body.order_type,
+        currency=body.currency,
         subtotal=subtotal,
         tax_amount=body.tax_amount,
         discount_amount=body.discount_amount,

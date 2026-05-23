@@ -34,6 +34,7 @@ class ServiceTicket(Base):
     service_report   = Column(Text, nullable=True)
 
     # ISR-008: emergency gets priority fee
+    currency         = Column(String(10), nullable=False, default="XAF")
     priority_fee     = Column(Numeric(14, 2), nullable=True)
     priority_fee_waived = Column(Boolean, default=False)
 
@@ -66,6 +67,7 @@ class ServiceContract(Base):
     billing_cycle     = Column(String(30), nullable=True)
     start_date        = Column(DateTime, nullable=True)
     end_date          = Column(DateTime, nullable=True)
+    currency          = Column(String(10), nullable=False, default="XAF")
     value             = Column(Numeric(14, 2), nullable=True)
     is_active         = Column(Boolean, default=True)
     created_by        = Column(Integer, nullable=True)
@@ -131,6 +133,7 @@ class SolarProject(Base):
     proposed_system_capacity_kwp = Column(Numeric(10, 3), nullable=True)
 
     # ESR-003
+    currency                  = Column(String(10), nullable=False, default="XAF")
     customer_signed_quotation = Column(Boolean, default=False)
     deposit_paid              = Column(Boolean, default=False)
     deposit_amount            = Column(Numeric(14, 2), nullable=True)

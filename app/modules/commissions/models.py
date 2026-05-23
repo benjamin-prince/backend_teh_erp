@@ -35,7 +35,8 @@ class CommissionPartner(Base):
 
     # Default commission rate
     default_rate_pct  = Column(Numeric(5, 2), nullable=True)   # e.g. 5.00 = 5%
-    flat_rate_xaf     = Column(Numeric(14, 2), nullable=True)  # alternative flat fee
+    flat_rate         = Column(Numeric(14, 2), nullable=True)  # alternative flat fee
+    flat_rate_currency = Column(String(10), nullable=False, default="XAF")
 
     total_earned    = Column(Numeric(14, 2), default=0)
     total_paid      = Column(Numeric(14, 2), default=0)
@@ -73,6 +74,7 @@ class Commission(Base):
     ref_number      = Column(String(50), nullable=True)   # tracking_number / order_number
 
     # Amount
+    currency          = Column(String(10), nullable=False, default="XAF")
     transaction_value = Column(Numeric(14, 2), nullable=True)
     rate_pct          = Column(Numeric(5, 2), nullable=True)
     commission_amount = Column(Numeric(14, 2), nullable=False)

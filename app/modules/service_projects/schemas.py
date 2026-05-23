@@ -125,6 +125,7 @@ class ServiceProjectCreate(BaseModel):
     customer_id:     int
     service_type_id: Optional[int]         = None
     category:        ServiceCategory       = ServiceCategory.other
+    currency:        str                   = "XAF"
     site_address:    Optional[str]         = None
     start_date:      Optional[str]         = None   # "YYYY-MM-DD" string from frontend
     end_date:        Optional[str]         = None
@@ -161,6 +162,7 @@ class ServiceProjectOut(BaseModel):
     status:         ServiceProjectStatus
     category:       ServiceCategory
 
+    currency:        str = "XAF"
     subtotal:        Decimal
     discount_amount: Decimal
     tax_amount:      Decimal

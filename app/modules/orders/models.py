@@ -22,6 +22,7 @@ class Order(Base):
     supplier_ref_number = Column(String(100), nullable=True)  # OR-003
 
     # Financials — OR-001: total = sum(items) + tax - discount
+    currency      = Column(String(10), nullable=False, default="XAF")
     subtotal      = Column(Numeric(14, 2), default=0)
     tax_amount    = Column(Numeric(14, 2), default=0)
     discount_amount = Column(Numeric(14, 2), default=0)
