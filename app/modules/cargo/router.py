@@ -28,7 +28,8 @@ router = APIRouter(
 class ShipmentCreate(BaseModel):
     customer_id: int
     shipment_type: str
-    route: str
+    route: str = ""               # kept for backward compat; prefer cargo_route_id
+    cargo_route_id: Optional[int] = None  # DB-driven route (replaces free-text route)
     receiver_name: Optional[str] = None
     receiver_phone: Optional[str] = None
     receiver_address: Optional[str] = None
@@ -42,8 +43,10 @@ class ShipmentCreate(BaseModel):
     insurance_status: Optional[str] = None
     insured_value: Optional[float] = None
     # Pickup / delivery selection drives the available workflow steps
-    pickup_type:   Optional[str] = None  # warehouse_dropoff | pickup_request | agent_collection
-    delivery_type: Optional[str] = None  # door_delivery | warehouse_pickup | agency_pickup
+    pickup_type:      Optional[str] = None  # warehouse_dropoff | pickup_request | agent_collection
+    pickup_location:  Optional[str] = None  # which TEHTEK location (when warehouse_dropoff)
+    delivery_type:    Optional[str] = None  # door_delivery | warehouse_pickup | agency_pickup
+    delivery_location: Optional[str] = None  # which TEHTEK location (when warehouse_pickup / agency_pickup)
 
 class ShipmentUpdate(BaseModel):
     weight_kg: Optional[float] = None
@@ -56,8 +59,11 @@ class ShipmentUpdate(BaseModel):
     customs_value: Optional[float] = None
     content_description: Optional[str] = None
     notes: Optional[str] = None
-    pickup_type:   Optional[str] = None
-    delivery_type: Optional[str] = None
+    pickup_type:       Optional[str] = None
+    pickup_location:   Optional[str] = None
+    delivery_type:     Optional[str] = None
+    delivery_location: Optional[str] = None
+    cargo_route_id:    Optional[int] = None
 
 class DeclarationAccept(BaseModel):
     ip_address: Optional[str] = None

@@ -223,6 +223,27 @@ class InsuranceStatus(str, Enum):
     claim_rejected = "claim_rejected"
 
 
+# ── 5b. CARGO ROUTES ─────────────────────────────────────────────────────────
+
+class TransportMode(str, Enum):
+    sea   = "sea"
+    air   = "air"
+    land  = "land"
+    local = "local"
+
+class RouteStopSide(str, Enum):
+    origin      = "origin"
+    transit     = "transit"
+    destination = "destination"
+
+class RouteStopCondition(str, Enum):
+    """Controls when a stop appears in the effective workflow."""
+    pickup_request             = "pickup_request"              # only if pickup_type=pickup_request
+    warehouse_dropoff          = "warehouse_dropoff"           # only if pickup_type=warehouse_dropoff
+    door_delivery              = "door_delivery"               # only if delivery_type=door_delivery
+    warehouse_or_agency_pickup = "warehouse_or_agency_pickup"  # if delivery_type=warehouse_pickup OR agency_pickup
+
+
 # ── 6. CARRIER & TRAVELER ────────────────────────────────────────────────────
 
 class CarrierType(str, Enum):

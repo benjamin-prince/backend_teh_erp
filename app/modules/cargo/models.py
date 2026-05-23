@@ -64,6 +64,8 @@ class Shipment(Base):
     # Delivery
     delivery_type      = Column(String(30), default=DeliveryType.warehouse_pickup)
     pickup_type        = Column(String(30), default=PickupType.warehouse_dropoff)
+    pickup_location    = Column(String(120), nullable=True)   # which TEHTEK location for drop-off/collection
+    delivery_location  = Column(String(120), nullable=True)   # which TEHTEK location for recipient pickup
     delivery_attempts  = Column(Integer, default=0)
 
     # Storage (ST-001, ST-002)
@@ -73,6 +75,9 @@ class Shipment(Base):
 
     # Bag assignment
     bag_id             = Column(Integer, ForeignKey("bags.id"), nullable=True)
+
+    # DB-driven route (nullable — old shipments keep string route for compat)
+    cargo_route_id     = Column(Integer, ForeignKey("cargo_routes.id"), nullable=True)
 
     photo_count        = Column(Integer, default=0)
     notes              = Column(Text, nullable=True)
@@ -84,6 +89,7 @@ class Shipment(Base):
     tracking_events = relationship("TrackingEvent", back_populates="shipment", lazy="select")
     items           = relationship("ShipmentItem", back_populates="shipment", lazy="select", order_by="ShipmentItem.sort_order", cascade="all, delete-orphan")
     bag             = relationship("Bag", back_populates="shipments")
+    cargo_route     = relationship("CargoRoute", back_populates="shipments", lazy="select")
 
     __table_args__ = (
         Index("ix_shipment_company_status", "company_id", "status"),

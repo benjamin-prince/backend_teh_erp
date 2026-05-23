@@ -39,6 +39,7 @@ ALL_PERMISSIONS = [
     ("cargo:tracking_update", "cargo",    "Update tracking checkpoints"),
     ("cargo:bags",            "cargo",    "Manage bags"),
     ("cargo:travelers",       "cargo",    "Manage travelers"),
+    ("cargo:routes",          "cargo",    "Manage cargo routes and stops"),
     # Orders
     ("orders:create",         "orders",   "Create orders"),
     ("orders:read",           "orders",   "View orders"),
@@ -95,7 +96,7 @@ ROLES = {
         "description": "Full operational view, approvals, staff supervision",
         "permissions": [
             "users:read","customers:read","customers:update","customers:kyc_verify",
-            "cargo:create","cargo:read","cargo:update","cargo:tracking_update","cargo:bags",
+            "cargo:create","cargo:read","cargo:update","cargo:tracking_update","cargo:bags","cargo:routes",
             "orders:create","orders:read","orders:update","orders:approve",
             "finance:invoices","finance:payments","finance:expenses","finance:income",
             "finance:accounts","finance:receivables","finance:debt","finance:summary",

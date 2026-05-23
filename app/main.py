@@ -41,6 +41,7 @@ from app.modules.customers.models import (  # noqa: F401
 from app.modules.cargo.models import (  # noqa: F401
     Shipment, TrackingEvent, Bag, CarrierAssignment, PickupRequest
 )
+from app.modules.cargo.route_models import CargoRoute, CargoRouteStop  # noqa: F401
 from app.modules.stock.models import (  # noqa: F401
     Product, Warehouse, StockItem, StockMovement, Reservation
 )
@@ -77,6 +78,7 @@ from app.modules.service_projects.router import router as service_projects_route
 from app.modules.service_projects.service_types_router import router as service_types_router
 from app.modules.finance.extended_router import router as finance_extended_router
 from app.modules.personal.router import router as personal_router  # ← NEW
+from app.modules.cargo.route_router import router as cargo_routes_router
 
 logger = logging.getLogger("tehtek")
 
@@ -179,6 +181,7 @@ app.include_router(roles_router)
 app.include_router(companies_router)
 app.include_router(customers_router)
 app.include_router(cargo_router)
+app.include_router(cargo_routes_router)
 app.include_router(stock_router)
 app.include_router(orders_router)
 app.include_router(infra_router)
