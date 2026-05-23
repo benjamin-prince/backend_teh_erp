@@ -16,11 +16,14 @@ from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.core.enums import UserStatus
 
-bearer_scheme = HTTPBearer()
+# auto_error=False so we can raise 401 (not 403) when the Authorization header
+# is missing. RFC 7235: missing/invalid auth → 401; valid auth, no permission → 403.
+# The frontend's auto-refresh hook only triggers on 401.
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ):
     """
@@ -38,6 +41,12 @@ def get_current_user(
         detail="Invalid or expired token",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         payload = decode_access_token(credentials.credentials)
         if payload.get("type") != "access":
