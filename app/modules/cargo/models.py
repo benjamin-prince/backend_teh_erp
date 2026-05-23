@@ -103,6 +103,8 @@ class TrackingEvent(Base):
     created_by   = Column(Integer, nullable=True)
     created_at   = Column(DateTime, default=datetime.utcnow, nullable=False)
     is_public    = Column(Boolean, default=True)  # customer-visible
+    # Up-to-10 photos attached to this checkpoint (intake, transit, delivery, etc.)
+    photos       = Column(JSONB, nullable=False, server_default="[]")
 
     shipment = relationship("Shipment", back_populates="tracking_events")
 

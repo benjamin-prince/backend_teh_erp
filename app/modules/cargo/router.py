@@ -14,7 +14,8 @@ from app.modules.cargo.models import Shipment, TrackingEvent, Bag, CarrierAssign
 from app.modules.companies.controller import next_sequence
 from app.core.enums import ShipmentStatus, SequenceType, BagStatus
 
-MAX_PHOTOS_PER_ITEM = 5
+MAX_PHOTOS_PER_ITEM  = 5
+MAX_PHOTOS_PER_EVENT = 10
 
 router = APIRouter(
     prefix="/api/v1",
@@ -58,11 +59,24 @@ class ShipmentUpdate(BaseModel):
 class DeclarationAccept(BaseModel):
     ip_address: Optional[str] = None
 
+class TrackingEventPhoto(BaseModel):
+    url: str
+    public_id: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+
 class TrackingEventCreate(BaseModel):
     event_type: str
     description: Optional[str] = None
     location: Optional[str] = None
     is_public: bool = True
+    photos: List[TrackingEventPhoto] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_photos(self):
+        if len(self.photos) > MAX_PHOTOS_PER_EVENT:
+            raise ValueError(f"At most {MAX_PHOTOS_PER_EVENT} photos per checkpoint")
+        return self
 
 class BagCreate(BaseModel):
     bag_type: str
