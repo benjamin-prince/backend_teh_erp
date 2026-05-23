@@ -372,3 +372,23 @@ def get_supplier(supplier_id: int, db: Session = Depends(get_db), _=Depends(requ
     if not s:
         raise HTTPException(404, "Supplier not found")
     return s
+
+@router.patch("/suppliers/{supplier_id}", response_model=schemas.SupplierOut)
+def update_supplier(
+    supplier_id: int, body: schemas.SupplierUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("procurement:create")),
+):
+    s = controller.update_supplier(db, supplier_id, current_user.company_id, body.model_dump(exclude_unset=True))
+    if not s:
+        raise HTTPException(404, "Supplier not found")
+    return s
+
+@router.delete("/suppliers/{supplier_id}", status_code=204)
+def delete_supplier(
+    supplier_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("procurement:create")),
+):
+    if not controller.delete_supplier(db, supplier_id, current_user.company_id):
+        raise HTTPException(404, "Supplier not found")

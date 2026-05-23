@@ -141,6 +141,18 @@ class SupplierCreate(BaseModel):
     currency: str = "XAF"
     payment_terms: int = 30
 
+class SupplierUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    currency: Optional[str] = None
+    payment_terms: Optional[int] = None
+    is_active: Optional[bool] = None
+
 class SupplierOut(BaseModel):
     id: int
     company_id: int
@@ -148,7 +160,11 @@ class SupplierOut(BaseModel):
     code: Optional[str]
     email: Optional[str]
     phone: Optional[str]
+    address: Optional[str]
+    city: Optional[str]
     country: Optional[str]
     currency: str
+    payment_terms: int
     is_active: bool
+    created_at: datetime
     model_config = {"from_attributes": True}

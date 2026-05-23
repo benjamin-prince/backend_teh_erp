@@ -41,6 +41,9 @@ class ShipmentCreate(BaseModel):
     height_cm: Optional[float] = None
     insurance_status: Optional[str] = None
     insured_value: Optional[float] = None
+    # Pickup / delivery selection drives the available workflow steps
+    pickup_type:   Optional[str] = None  # warehouse_dropoff | pickup_request | agent_collection
+    delivery_type: Optional[str] = None  # door_delivery | warehouse_pickup | agency_pickup
 
 class ShipmentUpdate(BaseModel):
     weight_kg: Optional[float] = None
@@ -52,9 +55,9 @@ class ShipmentUpdate(BaseModel):
     declared_value: Optional[float] = None
     customs_value: Optional[float] = None
     content_description: Optional[str] = None
-    insurance_status: Optional[str] = None
-    insured_value: Optional[float] = None
     notes: Optional[str] = None
+    pickup_type:   Optional[str] = None
+    delivery_type: Optional[str] = None
 
 class DeclarationAccept(BaseModel):
     ip_address: Optional[str] = None

@@ -141,11 +141,38 @@ def add_note(db: Session, customer_id: int, content: str, actor_id: int) -> Cust
 # ── Suppliers ─────────────────────────────────────────────────────────────────
 
 def create_supplier(db: Session, data: dict, actor_id: int) -> Supplier:
-    s = Supplier(**data, created_by=actor_id)
+    s = Supplier(**data)
     db.add(s)
     db.commit()
     db.refresh(s)
     return s
+
+
+def update_supplier(db: Session, supplier_id: int, company_id: int, data: dict) -> Optional[Supplier]:
+    s = db.query(Supplier).filter(
+        Supplier.id == supplier_id, Supplier.company_id == company_id,
+        Supplier.deleted_at.is_(None)
+    ).first()
+    if not s:
+        return None
+    for k, v in data.items():
+        setattr(s, k, v)
+    db.commit()
+    db.refresh(s)
+    return s
+
+
+def delete_supplier(db: Session, supplier_id: int, company_id: int) -> bool:
+    from datetime import datetime
+    s = db.query(Supplier).filter(
+        Supplier.id == supplier_id, Supplier.company_id == company_id,
+        Supplier.deleted_at.is_(None)
+    ).first()
+    if not s:
+        return False
+    s.deleted_at = datetime.utcnow()
+    db.commit()
+    return True
 
 
 def list_suppliers(db: Session, company_id: int):

@@ -624,7 +624,7 @@ the routes explicitly listed in the public route whitelist (ACC-008).
 ### ACC-008 — Public route whitelist (no auth required) ★ NEW
 ONLY the following routes may operate without authentication. All others require JWT.
 
-Staff App (app.tehtek.com / api.tehtek.com/api/v1):
+Staff App (app.tehtek.com / api2.tehtek.com/api/v1):
 ```
 POST   /api/v1/auth/login
 POST   /api/v1/auth/refresh

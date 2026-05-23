@@ -66,7 +66,7 @@ a WARNING in the logs and an alert to the CTO.
 
 ### Public Route Whitelist (no JWT required)
 
-Staff Backend (api.tehtek.com/api/v1):
+Staff Backend (api2.tehtek.com/api/v1):
 ```
 POST  /api/v1/auth/login
 POST  /api/v1/auth/refresh

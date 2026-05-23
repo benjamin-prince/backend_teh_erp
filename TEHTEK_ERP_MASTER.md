@@ -18,7 +18,7 @@
 #   - seed_superadmin() returns bool (True=created, False=already existed)
 #   - Password strength validated at startup — ValueError if too weak
 #   - First-launch log: 'FIRST LAUNCH: superadmin created — email=admin@tehtek.com'
-#   - Old backend retired. New backend live at api.tehtek.com/api/v1/
+#   - Old backend retired. New backend live at api2.tehtek.com/api/v1/
 # Changelog v2.2: Auth rules #31-#34, refresh_tokens table, auth retrofit notes.
 
 ---
@@ -97,13 +97,13 @@ Routes: USA / Europe / China ↔ Cameroon + local delivery
 ## 🖥️ INFRASTRUCTURE
 
 ### NEW Backend — Live on VPS 1 (App v1.2.0)
-- **URL pattern:** `https://api.tehtek.com/api/v1/...`
+- **URL pattern:** `https://api2.tehtek.com/api/v1/...`
 - **Stack:** FastAPI + SQLAlchemy 2.0 sync + PostgreSQL 16 + Docker + Caddy
 - **Status:** Deployed. All core modules running in production.
 - **Deploy:** `git pull && docker compose up -d --build backend`
 
 ### ~~OLD Backend~~ — Retired
-- Was at: `https://api.tehtek.com/api/api/v1/...` (double /api/)
+- Was at: `https://api2.tehtek.com/api/api/v1/...` (double /api/)
 - Replaced by new backend. No longer running.
 
 #### Frontend (VPS 2)
@@ -513,7 +513,7 @@ Commission Manager · Commission Partner (external — portal access only)
 ## 🔌 API ENDPOINTS
 
 ### NEW Backend (under development — not yet deployed)
-Base URL: `https://api.tehtek.com/api/v1`
+Base URL: `https://api2.tehtek.com/api/v1`
 
 #### ✅ Companies Module (Week 1)
 ```
@@ -587,7 +587,7 @@ GET    /api/v1/health
 ```
 
 ### OLD Backend (currently live)
-Base URL: `https://api.tehtek.com/api/api/v1` (double /api/ — legacy)
+Base URL: `https://api2.tehtek.com/api/api/v1` (double /api/ — legacy)
 Has: auth, users, roles, referrals (old system) — serving current frontend
 
 ---
@@ -608,7 +608,7 @@ docker compose logs -f backend
 # Build locally
 cd ~/teh_frontend
 docker build \
-  --build-arg NEXT_PUBLIC_API_URL=https://api.tehtek.com/api/v1 \
+  --build-arg NEXT_PUBLIC_API_URL=https://api2.tehtek.com/api/v1 \
   -t boulaz2002/tehtek-frontend:latest .
 docker push boulaz2002/tehtek-frontend:latest
 
