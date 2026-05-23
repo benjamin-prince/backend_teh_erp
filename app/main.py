@@ -1,6 +1,6 @@
 """
 TEHTEK ERP — FastAPI Entry Point
-URL: https://api.tehtek.com/api/v1/...
+URL: https://api2.tehtek.com/api/v1/...
 
 Startup order:
   1. Create all DB tables (create_all)
@@ -145,12 +145,25 @@ def public_tracking(tracking_number: str):
             "tracking_number": shipment.tracking_number,
             "status": shipment.status,
             "route": shipment.route,
+            "shipment_type": shipment.shipment_type,
+            "priority": shipment.priority,
+            "sender_name": shipment.sender_name,
+            "sender_country": shipment.sender_country,
+            "receiver_name": shipment.receiver_name,
+            "receiver_phone": shipment.receiver_phone,
+            "receiver_country": shipment.receiver_country,
+            "receiver_address": shipment.receiver_address,
+            "weight_kg": float(shipment.weight_kg) if shipment.weight_kg is not None else None,
+            "content_description": shipment.content_description,
+            "delivery_type": shipment.delivery_type,
+            "created_at": shipment.created_at.isoformat(),
             "events": [
                 {
                     "event_type": e.event_type,
                     "description": e.description,
                     "location": e.location,
                     "timestamp": e.created_at.isoformat(),
+                    "photos": e.photos or [],
                 }
                 for e in public_events
             ],
