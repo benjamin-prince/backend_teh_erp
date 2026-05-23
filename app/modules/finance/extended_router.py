@@ -86,6 +86,7 @@ class LocationCreate(BaseModel):
     address:                 Optional[str] = None
     city:                    str
     country:                 str = "Cameroon"
+    currency:                str = "XAF"
     rent_monthly:            float = 0
     electricity_monthly:     float = 0
     water_monthly:           float = 0
@@ -389,6 +390,7 @@ def create_location(
         address                 = body.address,
         city                    = body.city,
         country                 = body.country,
+        currency                = body.currency,
         rent_monthly            = body.rent_monthly,
         electricity_monthly     = body.electricity_monthly,
         water_monthly           = body.water_monthly,

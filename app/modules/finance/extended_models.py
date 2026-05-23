@@ -25,6 +25,7 @@ class Location(Base):
     landlord_contact        = Column(String(100), nullable=True)
     notes                   = Column(Text, nullable=True)
     status                  = Column(String(30), nullable=False, default="active")
+    currency                = Column(String(10),  nullable=False, default="XAF")
     created_at              = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at              = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     money_accounts = relationship("MoneyAccount", back_populates="location", lazy="select")
