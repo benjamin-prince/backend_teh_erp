@@ -1,7 +1,7 @@
 """shipment_item car fields and photos
 
 Revision ID: c4d7e8f10b21
-Revises: a9f3b2c1d4e5
+Revises: 6205f6379a17
 Create Date: 2026-05-23
 """
 from alembic import op
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision = 'c4d7e8f10b21'
-down_revision = 'a9f3b2c1d4e5'
+down_revision = '6205f6379a17'
 branch_labels = None
 depends_on = None
 
