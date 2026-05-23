@@ -4,6 +4,7 @@ from sqlalchemy import (
     Boolean, Column, DateTime, ForeignKey, Integer,
     Numeric, String, Text, UniqueConstraint, Index
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.core.enums import (
@@ -180,6 +181,26 @@ class ShipmentItem(Base):
     weight_kg   = Column(Numeric(10, 3), nullable=True)
     notes       = Column(Text, nullable=True)
     sort_order  = Column(Integer, nullable=False, default=0)
+
+    # Car-specific fields (used when is_car=True)
+    is_car       = Column(Boolean, nullable=False, default=False)
+    vin          = Column(String(50),  nullable=True)
+    make         = Column(String(80),  nullable=True)
+    model        = Column(String(80),  nullable=True)
+    year         = Column(Integer,     nullable=True)
+    color        = Column(String(50),  nullable=True)
+    mileage_km   = Column(Integer,     nullable=True)
+    engine       = Column(String(80),  nullable=True)
+    transmission = Column(String(30),  nullable=True)  # automatic | manual | cvt | dct
+    fuel_type    = Column(String(30),  nullable=True)  # gasoline | diesel | hybrid | electric | lpg
+    title_ready  = Column(Boolean,     nullable=True)  # title document on hand
+    no_lien      = Column(Boolean,     nullable=True)  # title is clean / no lender
+    is_drivable  = Column(Boolean,     nullable=True)
+    options_text = Column(Text,        nullable=True)  # free-form options (sunroof, leather…)
+
+    # Up-to-5 photos stored as JSONB list of {url, public_id, width, height}
+    photos      = Column(JSONB, nullable=False, server_default="[]")
+
     created_at  = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     shipment = relationship("Shipment", back_populates="items")

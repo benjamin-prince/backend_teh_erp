@@ -1,15 +1,20 @@
 """TEHTEK — Cargo Router. ACC-007: auth at router level."""
+import hashlib
+import time
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field, model_validator
+from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_permission
 from app.modules.cargo.models import Shipment, TrackingEvent, Bag, CarrierAssignment, PickupRequest
 from app.modules.companies.controller import next_sequence
 from app.core.enums import ShipmentStatus, SequenceType, BagStatus
+
+MAX_PHOTOS_PER_ITEM = 5
 
 router = APIRouter(
     prefix="/api/v1",
@@ -291,27 +296,79 @@ def assign_carrier(
 
 # ── Shipment Items ─────────────────────────────────────────────────────────────
 
-from pydantic import BaseModel as PydanticBase
-from typing import Optional as Opt
+class PhotoIn(BaseModel):
+    url:       str
+    public_id: Optional[str] = None
+    width:     Optional[int] = None
+    height:    Optional[int] = None
 
-class ShipmentItemIn(PydanticBase):
+class ShipmentItemIn(BaseModel):
     description: str
     quantity:    float = 1
     unit:        str   = "pcs"
-    weight_kg:   Opt[float] = None
-    notes:       Opt[str]   = None
-    sort_order:  int        = 0
+    weight_kg:   Optional[float] = None
+    notes:       Optional[str]   = None
+    sort_order:  int              = 0
 
-class ShipmentItemOut(PydanticBase):
+    # Car fields
+    is_car:       bool            = False
+    vin:          Optional[str]   = None
+    make:         Optional[str]   = None
+    model:        Optional[str]   = None
+    year:         Optional[int]   = None
+    color:        Optional[str]   = None
+    mileage_km:   Optional[int]   = None
+    engine:       Optional[str]   = None
+    transmission: Optional[str]   = None
+    fuel_type:    Optional[str]   = None
+    title_ready:  Optional[bool]  = None
+    no_lien:      Optional[bool]  = None
+    is_drivable:  Optional[bool]  = None
+    options_text: Optional[str]   = None
+
+    photos: List[PhotoIn] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate(self):
+        if len(self.photos) > MAX_PHOTOS_PER_ITEM:
+            raise ValueError(f"At most {MAX_PHOTOS_PER_ITEM} photos per item")
+        if self.is_car:
+            missing = [f for f in ("vin", "make", "model", "year") if not getattr(self, f)]
+            if missing:
+                raise ValueError(f"Car items require: {', '.join(missing)}")
+            if self.vin and not (11 <= len(self.vin.strip()) <= 17):
+                raise ValueError("VIN must be 11–17 characters")
+            if self.year and not (1900 <= self.year <= datetime.utcnow().year + 1):
+                raise ValueError("Year out of range")
+        return self
+
+class ShipmentItemOut(BaseModel):
     model_config = {"from_attributes": True}
     id:          int
     shipment_id: int
     description: str
     quantity:    float
     unit:        str
-    weight_kg:   Opt[float]
-    notes:       Opt[str]
+    weight_kg:   Optional[float]
+    notes:       Optional[str]
     sort_order:  int
+
+    is_car:       bool
+    vin:          Optional[str]
+    make:         Optional[str]
+    model:        Optional[str]
+    year:         Optional[int]
+    color:        Optional[str]
+    mileage_km:   Optional[int]
+    engine:       Optional[str]
+    transmission: Optional[str]
+    fuel_type:    Optional[str]
+    title_ready:  Optional[bool]
+    no_lien:      Optional[bool]
+    is_drivable:  Optional[bool]
+    options_text: Optional[str]
+
+    photos: List[Dict[str, Any]] = []
 
 @router.get("/shipments/{shipment_id}/items", response_model=list[ShipmentItemOut])
 def list_shipment_items(
@@ -360,7 +417,53 @@ def delete_shipment_item(
     from app.modules.cargo.models import ShipmentItem
     item = db.query(ShipmentItem).filter_by(id=item_id, shipment_id=shipment_id).first()
     if not item:
-        from fastapi import HTTPException
         raise HTTPException(404, "Item not found")
     db.delete(item)
     db.commit()
+
+
+# ── Cloudinary signed upload ──────────────────────────────────────────────────
+#
+# Frontend flow:
+#   1. POST /uploads/cloudinary-signature  →  { signature, timestamp, api_key,
+#                                              cloud_name, folder }
+#   2. Browser uploads file directly to
+#      https://api.cloudinary.com/v1_1/{cloud_name}/image/upload
+#      with multipart form: file, api_key, timestamp, signature, folder
+#   3. Browser receives { secure_url, public_id, width, height } and stores it
+#      in the ShipmentItem.photos array.
+
+class CloudinarySignRequest(BaseModel):
+    folder: Optional[str] = None  # override default folder
+
+class CloudinarySignResponse(BaseModel):
+    signature:  str
+    timestamp:  int
+    api_key:    str
+    cloud_name: str
+    folder:     str
+
+@router.post("/uploads/cloudinary-signature", response_model=CloudinarySignResponse)
+def cloudinary_signature(
+    body: CloudinarySignRequest,
+    current_user=Depends(get_current_user),
+):
+    """Return a short-lived signed payload for direct browser → Cloudinary upload."""
+    if not (settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY and settings.CLOUDINARY_API_SECRET):
+        raise HTTPException(503, "Cloudinary not configured")
+
+    folder    = (body.folder or settings.CLOUDINARY_UPLOAD_FOLDER).strip("/")
+    timestamp = int(time.time())
+
+    # Signature = sha1( "<param1>=<value1>&...&<api_secret>" )
+    # with params sorted alphabetically (folder, timestamp here).
+    to_sign   = f"folder={folder}&timestamp={timestamp}{settings.CLOUDINARY_API_SECRET}"
+    signature = hashlib.sha1(to_sign.encode("utf-8")).hexdigest()
+
+    return CloudinarySignResponse(
+        signature=signature,
+        timestamp=timestamp,
+        api_key=settings.CLOUDINARY_API_KEY,
+        cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+        folder=folder,
+    )
