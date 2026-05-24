@@ -148,7 +148,7 @@ def public_tracking(tracking_number: str):
         return {
             "tracking_number": shipment.tracking_number,
             "status": shipment.status,
-            "route": shipment.route,
+            "route": shipment.route_legacy,
             "shipment_type": shipment.shipment_type,
             "priority": shipment.priority,
             "sender_name": shipment.sender_name,
