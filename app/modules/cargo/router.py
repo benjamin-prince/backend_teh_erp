@@ -11,8 +11,33 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_permission
 from app.modules.cargo.models import Shipment, TrackingEvent, Bag, CarrierAssignment, PickupRequest
+from app.modules.finance.models import Invoice
 from app.modules.companies.controller import next_sequence
-from app.core.enums import ShipmentStatus, SequenceType, BagStatus
+from app.core.enums import ShipmentStatus, SequenceType, BagStatus, InvoiceStatus
+
+# SR-003: statuses that require a fully-paid invoice
+_RELEASE_STATUSES = {ShipmentStatus.out_for_delivery, ShipmentStatus.delivered}
+
+def _assert_invoice_paid(shipment_id: int, db: Session, override_user=None) -> None:
+    """SR-003 king rule: raise 400 if the shipment has an unpaid invoice."""
+    invoice = (
+        db.query(Invoice)
+        .filter_by(ref_model="shipment", ref_id=shipment_id, deleted_at=None)
+        .order_by(Invoice.id.desc())
+        .first()
+    )
+    if invoice is None:
+        raise HTTPException(
+            400,
+            "SR-003: No invoice found for this shipment. Create and mark it paid before releasing."
+        )
+    if invoice.status not in (InvoiceStatus.paid,):
+        raise HTTPException(
+            400,
+            f"SR-003: Invoice {invoice.invoice_number} is '{invoice.status.value}' "
+            f"(balance due: {invoice.balance_due} {invoice.currency}). "
+            "Mark the invoice as paid before releasing the shipment."
+        )
 
 MAX_PHOTOS_PER_ITEM  = 5
 MAX_PHOTOS_PER_EVENT = 10
@@ -28,8 +53,8 @@ router = APIRouter(
 class ShipmentCreate(BaseModel):
     customer_id: int
     shipment_type: str
-    route: str = ""               # kept for backward compat; prefer cargo_route_id
-    cargo_route_id: Optional[int] = None  # DB-driven route (replaces free-text route)
+    route: str = ""               # deprecated — stored as route_legacy; use cargo_route_id
+    cargo_route_id: Optional[int] = None
     receiver_name: Optional[str] = None
     receiver_phone: Optional[str] = None
     receiver_address: Optional[str] = None
@@ -109,8 +134,10 @@ def create_shipment(
     body: ShipmentCreate, db: Session = Depends(get_db),
     current_user=Depends(require_permission("cargo:create")),
 ):
+    data = body.model_dump()
+    data["route_legacy"] = data.pop("route", "")   # rename: route → route_legacy
     s = Shipment(
-        **body.model_dump(),
+        **data,
         company_id=current_user.company_id,
         branch_id=current_user.branch_id,
         created_by=current_user.id,
@@ -164,6 +191,12 @@ def update_shipment(
     s = db.query(Shipment).filter_by(id=shipment_id, deleted_at=None).first()
     if not s:
         raise HTTPException(404, "Shipment not found")
+
+    # SR-003: block release/delivery if invoice unpaid
+    new_status = body.status if body.status else None
+    if new_status and ShipmentStatus(new_status) in _RELEASE_STATUSES:
+        _assert_invoice_paid(shipment_id, db)
+
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(s, k, v)
     s.updated_at = datetime.utcnow()
@@ -182,7 +215,7 @@ def confirm_shipment(
         raise HTTPException(404, "Shipment not found")
     if not s.declaration_accepted:
         raise HTTPException(400, "Customer must accept the liability declaration (SR-008) before confirmation")
-    s.tracking_number = next_sequence(db, SequenceType.tracking_number, s.route)
+    s.tracking_number = next_sequence(db, SequenceType.tracking_number, s.route_legacy or "")
     s.status = ShipmentStatus.confirmed
     db.commit()
     # Log tracking event
@@ -192,6 +225,50 @@ def confirm_shipment(
         created_by=current_user.id,
     ))
     db.commit()
+    return s
+
+class ReleaseBody(BaseModel):
+    override_reason: Optional[str] = None   # required if overriding unpaid invoice
+
+@router.post("/shipments/{shipment_id}/release")
+def release_shipment(
+    shipment_id: int,
+    body: ReleaseBody,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("cargo:update")),
+):
+    """SR-003: move shipment to out_for_delivery. Requires paid invoice.
+    Users with can_approve_shipment_release may override with a mandatory reason."""
+    s = db.query(Shipment).filter_by(id=shipment_id, deleted_at=None).first()
+    if not s:
+        raise HTTPException(404, "Shipment not found")
+
+    can_override = getattr(current_user, "is_superadmin", False) or \
+        any(getattr(pf, "permission_key", None) == "can_approve_shipment_release"
+            and getattr(pf, "is_granted", False)
+            for pf in getattr(current_user, "permission_flags", []))
+
+    if can_override and body.override_reason:
+        # Allowed override — log it but proceed
+        db.add(TrackingEvent(
+            shipment_id=s.id,
+            event_type="shipment_released",
+            description=f"[OVERRIDE] Released before full payment. Reason: {body.override_reason}",
+            created_by=current_user.id,
+        ))
+    else:
+        _assert_invoice_paid(shipment_id, db)
+
+    s.status = ShipmentStatus.out_for_delivery
+    s.updated_at = datetime.utcnow()
+    db.add(TrackingEvent(
+        shipment_id=s.id,
+        event_type="shipment_released",
+        description="Shipment released for delivery.",
+        created_by=current_user.id,
+    ))
+    db.commit()
+    db.refresh(s)
     return s
 
 @router.post("/shipments/{shipment_id}/accept-declaration")

@@ -108,6 +108,8 @@ async def lifespan(app: FastAPI):
         raise
     finally:
         db.close()
+    from app.core.scheduler import start as start_scheduler
+    start_scheduler()
     logger.info("TEHTEK ERP ready at /api/v1/")
     yield
     logger.info("TEHTEK ERP shutting down.")

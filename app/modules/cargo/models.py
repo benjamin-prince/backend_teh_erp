@@ -24,7 +24,7 @@ class Shipment(Base):
     tracking_number    = Column(String(50), unique=True, nullable=True)  # set on confirmation (SR-002)
     customer_id        = Column(Integer, ForeignKey("customers.id"), nullable=False)  # SR-001
     shipment_type      = Column(String(30), nullable=False)
-    route              = Column(String(30), nullable=False)
+    route_legacy       = Column(String(30), nullable=True)   # renamed from 'route' — use cargo_route_id
     status             = Column(String(30), nullable=False, default=ShipmentStatus.draft)
     priority           = Column(String(20), default=ShipmentPriority.standard)
 
