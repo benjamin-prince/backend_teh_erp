@@ -1,13 +1,13 @@
 """add new stock categories: printer, storage, telecom, tv_av
 
-Revision ID: f1a2b3c4d5e6
+Revision ID: 9d8c7b6a5f4e
 Revises: e9f0a1b2c3d4
 Create Date: 2026-05-26
 
 """
 from alembic import op
 
-revision = "f1a2b3c4d5e6"
+revision = "9d8c7b6a5f4e"
 down_revision = "e9f0a1b2c3d4"
 branch_labels = None
 depends_on = None
