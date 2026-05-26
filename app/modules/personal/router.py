@@ -491,19 +491,23 @@ def update_purchase(
 
     is_gift = obj.reason.lower().startswith("cadeau")
 
-    # Income: record the delta when more money is received
+    # Income: record any delta (positive = received, negative = correction/reversal)
     new_amount_received = obj.amount_received or 0.0
     delta = new_amount_received - old_amount_received
-    if delta > 0 and not is_gift:
+    if delta != 0 and not is_gift:
         db.add(models.PersonalIncome(
             date=date.today(),
             source=models.IncomeSource.OTHER,
             amount=delta,
             currency=obj.currency,
-            description=f"Remboursement: {obj.item_name} ({obj.person_name})",
+            description=(
+                f"Remboursement: {obj.item_name} ({obj.person_name})"
+                if delta > 0
+                else f"Correction paiement: {obj.item_name} ({obj.person_name})"
+            ),
         ))
 
-    # Expense: record when status flips to "bought" and a price exists
+    # Expense: status flips to "bought" → record cost
     if obj.status == "bought" and old_status != "bought" and obj.price:
         db.add(models.PersonalExpense(
             date=date.today(),
@@ -511,6 +515,16 @@ def update_purchase(
             amount=obj.price,
             currency=obj.currency,
             description=f"Achat: {obj.item_name} pour {obj.person_name}",
+        ))
+
+    # Expense reversal: status goes back from "bought" → "pending"
+    if old_status == "bought" and obj.status == "pending" and obj.price:
+        db.add(models.PersonalExpense(
+            date=date.today(),
+            category=models.ExpenseCategory.SHOPPING,
+            amount=-obj.price,
+            currency=obj.currency,
+            description=f"Annulation achat: {obj.item_name} pour {obj.person_name}",
         ))
 
     db.commit()

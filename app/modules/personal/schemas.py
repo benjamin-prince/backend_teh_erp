@@ -243,8 +243,9 @@ class PurchaseCommitmentCreate(BaseModel):
     item_name:        str
     link:             Optional[str] = None
     price:            Optional[float] = None   # what I pay to buy
+    price_currency:   str = "XAF"              # XAF by default; others must exist in currencies table
     price_asked:      Optional[float] = None   # what the other party pays me
-    currency:         str = "XAF"
+    currency:         str = "XAF"              # selling currency: XAF / EUR
     person_name:      str
     reason:           str                      # "Cadeau 🎁" | "Business 💼"
     priority:         int = 3                  # 1-5; gift always forced to 1
@@ -254,18 +255,21 @@ class PurchaseCommitmentCreate(BaseModel):
 
 
 class PurchaseCommitmentUpdate(BaseModel):
-    item_name:        Optional[str] = None
-    link:             Optional[str] = None
-    price:            Optional[float] = None
-    price_asked:      Optional[float] = None
-    currency:         Optional[str] = None
-    person_name:      Optional[str] = None
-    reason:           Optional[str] = None
-    status:           Optional[str] = None
-    priority:         Optional[int] = None
-    amount_received:  Optional[float] = None
-    due_date:         Optional[date] = None
-    notes:            Optional[str] = None
+    item_name:         Optional[str] = None
+    link:              Optional[str] = None
+    price:             Optional[float] = None
+    price_currency:    Optional[str] = None
+    price_asked:       Optional[float] = None
+    currency:          Optional[str] = None
+    person_name:       Optional[str] = None
+    reason:            Optional[str] = None
+    status:            Optional[str] = None
+    priority:          Optional[int] = None
+    amount_received:   Optional[float] = None
+    due_date:          Optional[date] = None
+    notes:             Optional[str] = None
+    purchase_location: Optional[str] = None
+    can_repurchase:    Optional[bool] = None
 
 
 class PurchaseCommitmentOut(BaseModel):
@@ -273,6 +277,7 @@ class PurchaseCommitmentOut(BaseModel):
     item_name:        str
     link:             Optional[str]
     price:            Optional[float]
+    price_currency:   Optional[str]
     price_asked:      Optional[float]
     currency:         str
     person_name:      str
@@ -282,6 +287,8 @@ class PurchaseCommitmentOut(BaseModel):
     amount_received:  float
     due_date:         Optional[date]
     notes:            Optional[str]
+    purchase_location: Optional[str]
+    can_repurchase:    Optional[bool]
     created_at:       datetime
 
     class Config:

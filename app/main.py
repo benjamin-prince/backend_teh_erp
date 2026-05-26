@@ -79,6 +79,8 @@ from app.modules.service_projects.service_types_router import router as service_
 from app.modules.finance.extended_router import router as finance_extended_router
 from app.modules.personal.router import router as personal_router  # ← NEW
 from app.modules.cargo.route_router import router as cargo_routes_router
+from app.modules.currencies.router import router as currencies_router
+from app.modules.currencies.models import Currency  # noqa: F401
 
 logger = logging.getLogger("tehtek")
 
@@ -195,3 +197,4 @@ app.include_router(containers_router)  # ← ADD THIS
 app.include_router(service_projects_router)
 app.include_router(service_types_router)
 app.include_router(personal_router)
+app.include_router(currencies_router)

@@ -156,9 +156,10 @@ class PurchaseCommitment(Base):
     id          = Column(Integer, primary_key=True, index=True)
     item_name   = Column(String(255), nullable=False)
     link        = Column(String(1000), nullable=True)
-    price       = Column(Float, nullable=True)   # what I pay to buy the item
-    price_asked = Column(Float, nullable=True)   # what the other party pays me back
-    currency    = Column(String(10), nullable=False, default="XAF")
+    price          = Column(Float, nullable=True)         # what I pay to buy the item
+    price_currency = Column(String(10), nullable=True, default="XAF")  # XAF / CNY / USD / EUR
+    price_asked    = Column(Float, nullable=True)         # what the other party pays me back
+    currency       = Column(String(10), nullable=False, default="XAF")  # selling currency: XAF / EUR
     person_name = Column(String(200), nullable=False)
     reason      = Column(String(500), nullable=False)  # gift, will pay back, promise…
     status           = Column(String(20), nullable=False, default=PurchaseCommitmentStatus.PENDING)
@@ -166,6 +167,8 @@ class PurchaseCommitment(Base):
     amount_received  = Column(Float, nullable=False, default=0)
     due_date         = Column(Date, nullable=True)
     notes            = Column(Text, nullable=True)
+    purchase_location = Column(String(20), nullable=True)   # "online" | "physical"
+    can_repurchase    = Column(Boolean, nullable=True)       # can buy again at same price?
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
     updated_at       = Column(DateTime(timezone=True), onupdate=func.now())
 
