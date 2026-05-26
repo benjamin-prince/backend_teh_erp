@@ -240,20 +240,23 @@ class DailySummaryOut(BaseModel):
 # ── Purchase Commitment ───────────────────────────────────────────────────────
 
 class PurchaseCommitmentCreate(BaseModel):
-    item_name:   str
-    link:        Optional[str] = None
-    price:       Optional[float] = None
-    currency:    str = "XAF"
-    person_name: str
-    reason:      str
-    due_date:    Optional[date] = None
-    notes:       Optional[str] = None
+    item_name:        str
+    link:             Optional[str] = None
+    price:            Optional[float] = None   # what I pay to buy
+    price_asked:      Optional[float] = None   # what the other party pays me
+    currency:         str = "XAF"
+    person_name:      str
+    reason:           str
+    amount_received:  float = 0
+    due_date:         Optional[date] = None
+    notes:            Optional[str] = None
 
 
 class PurchaseCommitmentUpdate(BaseModel):
     item_name:        Optional[str] = None
     link:             Optional[str] = None
     price:            Optional[float] = None
+    price_asked:      Optional[float] = None
     currency:         Optional[str] = None
     person_name:      Optional[str] = None
     reason:           Optional[str] = None
@@ -268,6 +271,7 @@ class PurchaseCommitmentOut(BaseModel):
     item_name:        str
     link:             Optional[str]
     price:            Optional[float]
+    price_asked:      Optional[float]
     currency:         str
     person_name:      str
     reason:           str

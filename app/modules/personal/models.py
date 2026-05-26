@@ -156,7 +156,8 @@ class PurchaseCommitment(Base):
     id          = Column(Integer, primary_key=True, index=True)
     item_name   = Column(String(255), nullable=False)
     link        = Column(String(1000), nullable=True)
-    price       = Column(Float, nullable=True)
+    price       = Column(Float, nullable=True)   # what I pay to buy the item
+    price_asked = Column(Float, nullable=True)   # what the other party pays me back
     currency    = Column(String(10), nullable=False, default="XAF")
     person_name = Column(String(200), nullable=False)
     reason      = Column(String(500), nullable=False)  # gift, will pay back, promise…
