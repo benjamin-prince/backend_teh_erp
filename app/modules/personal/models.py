@@ -160,11 +160,12 @@ class PurchaseCommitment(Base):
     currency    = Column(String(10), nullable=False, default="XAF")
     person_name = Column(String(200), nullable=False)
     reason      = Column(String(500), nullable=False)  # gift, will pay back, promise…
-    status      = Column(String(20), nullable=False, default=PurchaseCommitmentStatus.PENDING)
-    due_date    = Column(Date, nullable=True)
-    notes       = Column(Text, nullable=True)
-    created_at  = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at  = Column(DateTime(timezone=True), onupdate=func.now())
+    status           = Column(String(20), nullable=False, default=PurchaseCommitmentStatus.PENDING)
+    amount_received  = Column(Float, nullable=False, default=0)
+    due_date         = Column(Date, nullable=True)
+    notes            = Column(Text, nullable=True)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at       = Column(DateTime(timezone=True), onupdate=func.now())
 
 
 class DailySummary(Base):
