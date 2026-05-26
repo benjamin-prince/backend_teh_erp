@@ -15,7 +15,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.modules.stock.models import Product, StockItem
+from app.modules.stock.models import Product, ProductCategory, StockItem
 
 router = APIRouter(prefix="/api/v1/shop", tags=["shop-public"])
 
@@ -120,19 +120,42 @@ def get_shop_product(product_id: int, db: Session = Depends(get_db)):
 
 @router.get("/categories")
 def list_shop_categories(db: Session = Depends(get_db)):
-    """Categories that have at least one published product."""
-    rows = (
-        db.query(Product.category, func.count(Product.id).label("count"))
+    """All active shop categories from DB, with product count."""
+    # count published products per category
+    counts: dict[str, int] = dict(
+        db.query(Product.category, func.count(Product.id))
         .filter(
             Product.is_published == True,  # noqa: E712
             Product.is_active == True,
             Product.deleted_at.is_(None),
         )
         .group_by(Product.category)
-        .order_by(func.count(Product.id).desc())
         .all()
     )
-    return [{"category": r.category, "count": r.count} for r in rows]
+
+    cats = (
+        db.query(ProductCategory)
+        .filter(
+            ProductCategory.is_active == True,  # noqa: E712
+            ProductCategory.show_in_shop == True,
+            ProductCategory.deleted_at.is_(None),
+        )
+        .order_by(ProductCategory.sort_order, ProductCategory.key)
+        .all()
+    )
+
+    return [
+        {
+            "key":            c.key,
+            "label_fr":       c.label_fr,
+            "label_en":       c.label_en,
+            "icon":           c.icon,
+            "description_fr": c.description_fr,
+            "description_en": c.description_en,
+            "count":          counts.get(c.key, 0),
+        }
+        for c in cats
+    ]
 
 
 @router.get("/featured")

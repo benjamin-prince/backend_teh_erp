@@ -3,6 +3,46 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+# ── Category / Subcategory ────────────────────────────────────────────────────
+
+class CategoryCreate(BaseModel):
+    key: str
+    label_fr: str
+    label_en: str
+    icon: Optional[str] = None
+    description_fr: Optional[str] = None
+    description_en: Optional[str] = None
+    sort_order: int = 0
+    show_in_shop: bool = True
+
+
+class CategoryUpdate(BaseModel):
+    label_fr: Optional[str] = None
+    label_en: Optional[str] = None
+    icon: Optional[str] = None
+    description_fr: Optional[str] = None
+    description_en: Optional[str] = None
+    sort_order: Optional[int] = None
+    show_in_shop: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class CategoryOut(BaseModel):
+    id: int
+    key: str
+    label_fr: str
+    label_en: str
+    icon: Optional[str] = None
+    description_fr: Optional[str] = None
+    description_en: Optional[str] = None
+    sort_order: int
+    show_in_shop: bool
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
 class ProductCreate(BaseModel):
     name: str
     category: str

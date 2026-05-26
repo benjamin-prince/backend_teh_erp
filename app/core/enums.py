@@ -380,6 +380,8 @@ class StockCategory(str, Enum):
     accessories        = "accessories"
     consumable         = "consumable"
     office_supplies    = "office_supplies"
+    pc_peripherals     = "pc_peripherals"
+    pc_components      = "pc_components"
     raw_material       = "raw_material"
     finished_good      = "finished_good"
     spare_part         = "spare_part"

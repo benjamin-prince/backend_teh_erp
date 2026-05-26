@@ -14,11 +14,32 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 from app.core.enums import ProductCondition, ReservationStatus, SerialStatus, StockCategory, StockStatus
+
+
+# ─── Category taxonomy ────────────────────────────────────────────────────────
+
+class ProductCategory(Base):
+    """Master list of product categories — managed via ERP, consumed by shop."""
+    __tablename__ = "product_categories"
+
+    id             = Column(Integer, primary_key=True)
+    key            = Column(String(64),  nullable=False, unique=True)
+    label_fr       = Column(String(128), nullable=False)
+    label_en       = Column(String(128), nullable=False)
+    icon           = Column(String(8),   nullable=True)
+    description_fr = Column(String(256), nullable=True)
+    description_en = Column(String(256), nullable=True)
+    sort_order     = Column(Integer, default=0)
+    show_in_shop   = Column(Boolean, nullable=False, default=True)
+    is_active      = Column(Boolean, nullable=False, default=True)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+    deleted_at     = Column(DateTime, nullable=True)
 
 
 class Product(Base):

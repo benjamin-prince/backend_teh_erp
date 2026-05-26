@@ -83,6 +83,7 @@ from app.modules.currencies.router import router as currencies_router
 from app.modules.currencies.models import Currency  # noqa: F401
 from app.modules.stock.shop_router import router as shop_router
 from app.modules.stock.serial_router import router as serial_router
+from app.modules.stock.category_router import router as category_router
 
 logger = logging.getLogger("tehtek")
 
@@ -200,5 +201,6 @@ app.include_router(service_projects_router)
 app.include_router(service_types_router)
 app.include_router(personal_router)
 app.include_router(currencies_router)
-app.include_router(shop_router)    # public — no auth
-app.include_router(serial_router)  # traceability — auth via router dependency
+app.include_router(shop_router)      # public — no auth
+app.include_router(serial_router)    # traceability — auth via router dependency
+app.include_router(category_router)  # category taxonomy — authenticated

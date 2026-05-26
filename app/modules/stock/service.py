@@ -19,6 +19,8 @@ CAT_PREFIX: dict[str, str] = {
     "accessories":        "ACC",
     "consumable":         "CON",
     "office_supplies":    "OFF",
+    "pc_peripherals":     "PCP",
+    "pc_components":      "PCM",
     "raw_material":       "RAW",
     "finished_good":      "FIN",
     "spare_part":         "SPA",
@@ -49,6 +51,8 @@ SUBCATEGORIES: dict[str, list[str]] = {
     "office_supplies":    ["furniture", "stationery", "whiteboard", "shredder", "other"],
     "raw_material":       ["other"],
     "finished_good":      ["other"],
+    "pc_peripherals":     ["monitor", "keyboard", "mouse", "webcam", "speaker", "headset", "numpad", "hub", "docking", "other"],
+    "pc_components":      ["cpu", "ram", "gpu", "motherboard", "psu", "cooling", "case", "ssd_m2", "hdd_int", "other"],
     "spare_part":         ["other"],
     "packaging":          ["box", "tape", "bubble_wrap", "label", "pallet", "strap", "other"],
     # ── legacy aliases (old frontend still sends these) ────────────────────
