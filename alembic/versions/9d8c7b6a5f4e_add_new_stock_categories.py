@@ -14,10 +14,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE stockcategory ADD VALUE IF NOT EXISTS 'printer'")
-    op.execute("ALTER TYPE stockcategory ADD VALUE IF NOT EXISTS 'storage'")
-    op.execute("ALTER TYPE stockcategory ADD VALUE IF NOT EXISTS 'telecom'")
-    op.execute("ALTER TYPE stockcategory ADD VALUE IF NOT EXISTS 'tv_av'")
+    # category column is VARCHAR — no ALTER TYPE needed; new values work automatically
+    pass
 
 
 def downgrade() -> None:
