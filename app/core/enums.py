@@ -615,6 +615,7 @@ class SequenceType(str, Enum):
     payout_number     = "payout_number"
     batch_number      = "batch_number"
     serial_number     = "serial_number"
+    shop_order_number = "shop_order_number"
 
 
 # ── 16b. SERIAL / TRACEABILITY ────────────────────────────────────────────────

@@ -24,6 +24,7 @@ SEQUENCES = [
     (SequenceType.payout_number,     "PAY",  6, True,  True,  False),
     (SequenceType.batch_number,      "BCH",  6, True,  False, False),
     (SequenceType.serial_number,     "SN",   8, True,  False, False),
+    (SequenceType.shop_order_number, "SHOP", 6, True,  False, False),
 ]
 
 
