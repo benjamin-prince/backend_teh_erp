@@ -106,13 +106,11 @@ def receive_batch(
     - If `serials` list provided: use those serial numbers (auto-generate for empty strings)
     - If `serials` not provided: auto-generate all `quantity` serial numbers
     """
-    scope = enforce_company_scope(user)
+    company_id = user.company_id
 
-    product = db.query(Product).filter(
-        Product.id == body.product_id,
-        Product.company_id == scope["company_id"],
-        Product.deleted_at.is_(None),
-    ).first()
+    q = db.query(Product).filter(Product.id == body.product_id, Product.deleted_at.is_(None))
+    q = enforce_company_scope(user, q, Product)
+    product = q.first()
     if not product:
         raise HTTPException(404, "Product not found")
 
@@ -123,7 +121,7 @@ def receive_batch(
     batch = SupplierBatch(
         batch_number  = batch_no,
         product_id    = body.product_id,
-        company_id    = scope["company_id"],
+        company_id    = company_id,
         supplier_name = body.supplier_name,
         quantity      = body.quantity,
         unit_cost     = body.unit_cost,
@@ -135,20 +133,17 @@ def receive_batch(
     db.flush()  # get batch.id
 
     # Build serial list
-    provided = body.serials or []
-    # Pad with empty entries if fewer provided than quantity
+    provided = list(body.serials or [])
     while len(provided) < body.quantity:
         provided.append(SerialIn())
 
-    created_serials = []
     for entry in provided[:body.quantity]:
         sn_str = (entry.serial_number or "").strip()
         is_gen = False
         if not sn_str:
-            sn_str  = next_sequence(db, SequenceType.serial_number)
-            is_gen  = True
+            sn_str = next_sequence(db, SequenceType.serial_number)
+            is_gen = True
 
-        # Guard against duplicate serial numbers
         if db.query(SerialNumber).filter_by(serial_number=sn_str).first():
             raise HTTPException(409, f"Serial '{sn_str}' already exists")
 
@@ -156,13 +151,12 @@ def receive_batch(
             serial_number = sn_str,
             product_id    = body.product_id,
             batch_id      = batch.id,
-            company_id    = scope["company_id"],
+            company_id    = company_id,
             is_generated  = is_gen,
             status        = SerialStatus.in_stock,
             created_by    = user.id,
         )
         db.add(sn)
-        created_serials.append(sn)
 
     db.commit()
     db.refresh(batch)
@@ -177,11 +171,8 @@ def list_batches(
     db:         Session = Depends(get_db),
     user = Depends(get_current_user),
 ):
-    scope = enforce_company_scope(user)
-    q = db.query(SupplierBatch).filter(
-        SupplierBatch.company_id == scope["company_id"],
-        SupplierBatch.deleted_at.is_(None),
-    )
+    q = db.query(SupplierBatch).filter(SupplierBatch.deleted_at.is_(None))
+    q = enforce_company_scope(user, q, SupplierBatch)
     if product_id:
         q = q.filter(SupplierBatch.product_id == product_id)
     total = q.count()
@@ -199,12 +190,12 @@ def get_batch(
     db:       Session = Depends(get_db),
     user = Depends(get_current_user),
 ):
-    scope = enforce_company_scope(user)
-    b = db.query(SupplierBatch).filter(
+    q = db.query(SupplierBatch).filter(
         SupplierBatch.id == batch_id,
-        SupplierBatch.company_id == scope["company_id"],
         SupplierBatch.deleted_at.is_(None),
-    ).first()
+    )
+    q = enforce_company_scope(user, q, SupplierBatch)
+    b = q.first()
     if not b:
         raise HTTPException(404, "Batch not found")
     return _batch_out(b, include_serials=True)
@@ -221,17 +212,13 @@ def list_serials(
     db:         Session = Depends(get_db),
     user = Depends(get_current_user),
 ):
-    scope = enforce_company_scope(user)
-    q = db.query(SerialNumber).filter(
-        SerialNumber.company_id == scope["company_id"],
-        SerialNumber.deleted_at.is_(None),
-    )
+    q = db.query(SerialNumber).filter(SerialNumber.deleted_at.is_(None))
+    q = enforce_company_scope(user, q, SerialNumber)
     if product_id: q = q.filter(SerialNumber.product_id == product_id)
     if batch_id:   q = q.filter(SerialNumber.batch_id == batch_id)
     if status:     q = q.filter(SerialNumber.status == status)
     if search:
-        term = f"%{search}%"
-        q = q.filter(SerialNumber.serial_number.ilike(term))
+        q = q.filter(SerialNumber.serial_number.ilike(f"%{search}%"))
     total = q.count()
     items = q.order_by(SerialNumber.id.desc()).offset((page-1)*per_page).limit(per_page).all()
     return {
@@ -248,17 +235,16 @@ def trace_serial(
     user = Depends(get_current_user),
 ):
     """Full traceability: supplier batch → current status → customer/return."""
-    scope = enforce_company_scope(user)
-    s = db.query(SerialNumber).filter(
+    q = db.query(SerialNumber).filter(
         SerialNumber.serial_number == serial_number,
-        SerialNumber.company_id   == scope["company_id"],
         SerialNumber.deleted_at.is_(None),
-    ).first()
+    )
+    q = enforce_company_scope(user, q, SerialNumber)
+    s = q.first()
     if not s:
         raise HTTPException(404, f"Serial '{serial_number}' not found")
 
     out = _serial_out(s)
-    # Enrich with batch detail
     if s.batch:
         out["batch"] = {
             "batch_number":  s.batch.batch_number,
@@ -276,12 +262,12 @@ def update_serial(
     db:        Session = Depends(get_db),
     user = Depends(get_current_user),
 ):
-    scope = enforce_company_scope(user)
-    s = db.query(SerialNumber).filter(
+    q = db.query(SerialNumber).filter(
         SerialNumber.id == serial_id,
-        SerialNumber.company_id == scope["company_id"],
         SerialNumber.deleted_at.is_(None),
-    ).first()
+    )
+    q = enforce_company_scope(user, q, SerialNumber)
+    s = q.first()
     if not s:
         raise HTTPException(404, "Serial not found")
 
