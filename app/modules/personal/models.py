@@ -162,6 +162,7 @@ class PurchaseCommitment(Base):
     person_name = Column(String(200), nullable=False)
     reason      = Column(String(500), nullable=False)  # gift, will pay back, promise…
     status           = Column(String(20), nullable=False, default=PurchaseCommitmentStatus.PENDING)
+    priority         = Column(Integer, nullable=False, default=3)  # 1=green … 5=red; gift always 1
     amount_received  = Column(Float, nullable=False, default=0)
     due_date         = Column(Date, nullable=True)
     notes            = Column(Text, nullable=True)

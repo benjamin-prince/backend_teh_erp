@@ -246,7 +246,8 @@ class PurchaseCommitmentCreate(BaseModel):
     price_asked:      Optional[float] = None   # what the other party pays me
     currency:         str = "XAF"
     person_name:      str
-    reason:           str
+    reason:           str                      # "Cadeau 🎁" | "Business 💼"
+    priority:         int = 3                  # 1-5; gift always forced to 1
     amount_received:  float = 0
     due_date:         Optional[date] = None
     notes:            Optional[str] = None
@@ -261,6 +262,7 @@ class PurchaseCommitmentUpdate(BaseModel):
     person_name:      Optional[str] = None
     reason:           Optional[str] = None
     status:           Optional[str] = None
+    priority:         Optional[int] = None
     amount_received:  Optional[float] = None
     due_date:         Optional[date] = None
     notes:            Optional[str] = None
@@ -276,6 +278,7 @@ class PurchaseCommitmentOut(BaseModel):
     person_name:      str
     reason:           str
     status:           str
+    priority:         int
     amount_received:  float
     due_date:         Optional[date]
     notes:            Optional[str]
