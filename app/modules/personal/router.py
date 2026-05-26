@@ -436,6 +436,47 @@ def list_purchases(
     return q.order_by(models.PurchaseCommitment.created_at.desc()).all()
 
 
+def _income_tag(purchase_id: int) -> str:
+    return f"[purchase:{purchase_id}]"
+
+def _expense_tag(purchase_id: int) -> str:
+    return f"[achat:{purchase_id}]"
+
+def _sync_purchase_income(db, obj):
+    """Replace the single income record for this purchase with the current total."""
+    tag = _income_tag(obj.id)
+    db.query(models.PersonalIncome).filter(
+        models.PersonalIncome.description.like(f"%{tag}%")
+    ).delete(synchronize_session=False)
+
+    is_gift = obj.reason.lower().startswith("cadeau")
+    received = obj.amount_received or 0.0
+    if received > 0 and not is_gift:
+        db.add(models.PersonalIncome(
+            date=date.today(),
+            source=models.IncomeSource.OTHER,
+            amount=received,
+            currency=obj.currency,
+            description=f"Remboursement: {obj.item_name} ({obj.person_name}) {tag}",
+        ))
+
+def _sync_purchase_expense(db, obj):
+    """Replace the single expense record for this purchase with current price (or remove it)."""
+    tag = _expense_tag(obj.id)
+    db.query(models.PersonalExpense).filter(
+        models.PersonalExpense.description.like(f"%{tag}%")
+    ).delete(synchronize_session=False)
+
+    if obj.status == "bought" and obj.price:
+        db.add(models.PersonalExpense(
+            date=date.today(),
+            category=models.ExpenseCategory.SHOPPING,
+            amount=obj.price,
+            currency=obj.price_currency or obj.currency,
+            description=f"Achat: {obj.item_name} pour {obj.person_name} {tag}",
+        ))
+
+
 @router.post("/purchases", response_model=schemas.PurchaseCommitmentOut, status_code=201)
 def create_purchase(
     data: schemas.PurchaseCommitmentCreate,
@@ -444,28 +485,10 @@ def create_purchase(
 ):
     obj = models.PurchaseCommitment(**data.dict())
     db.add(obj)
+    db.flush()  # get obj.id before commit
 
-    is_gift = data.reason.lower().startswith("cadeau")
-
-    # Initial income if money already received at creation
-    if data.amount_received > 0 and not is_gift:
-        db.add(models.PersonalIncome(
-            date=date.today(),
-            source=models.IncomeSource.OTHER,
-            amount=data.amount_received,
-            currency=data.currency,
-            description=f"Remboursement: {data.item_name} ({data.person_name})",
-        ))
-
-    # Expense if created already as bought
-    if data.price and str(getattr(data, 'status', 'pending')) == 'bought':
-        db.add(models.PersonalExpense(
-            date=date.today(),
-            category=models.ExpenseCategory.SHOPPING,
-            amount=data.price,
-            currency=data.currency,
-            description=f"Achat: {data.item_name} pour {data.person_name}",
-        ))
+    _sync_purchase_income(db, obj)
+    _sync_purchase_expense(db, obj)
 
     db.commit()
     db.refresh(obj)
@@ -483,49 +506,12 @@ def update_purchase(
     if not obj:
         raise HTTPException(404, "Purchase commitment not found")
 
-    old_amount_received = obj.amount_received or 0.0
-    old_status = obj.status
-
     for k, v in data.dict(exclude_unset=True).items():
         setattr(obj, k, v)
 
-    is_gift = obj.reason.lower().startswith("cadeau")
-
-    # Income: record any delta (positive = received, negative = correction/reversal)
-    new_amount_received = obj.amount_received or 0.0
-    delta = new_amount_received - old_amount_received
-    if delta != 0 and not is_gift:
-        db.add(models.PersonalIncome(
-            date=date.today(),
-            source=models.IncomeSource.OTHER,
-            amount=delta,
-            currency=obj.currency,
-            description=(
-                f"Remboursement: {obj.item_name} ({obj.person_name})"
-                if delta > 0
-                else f"Correction paiement: {obj.item_name} ({obj.person_name})"
-            ),
-        ))
-
-    # Expense: status flips to "bought" → record cost
-    if obj.status == "bought" and old_status != "bought" and obj.price:
-        db.add(models.PersonalExpense(
-            date=date.today(),
-            category=models.ExpenseCategory.SHOPPING,
-            amount=obj.price,
-            currency=obj.currency,
-            description=f"Achat: {obj.item_name} pour {obj.person_name}",
-        ))
-
-    # Expense reversal: status goes back from "bought" → "pending"
-    if old_status == "bought" and obj.status == "pending" and obj.price:
-        db.add(models.PersonalExpense(
-            date=date.today(),
-            category=models.ExpenseCategory.SHOPPING,
-            amount=-obj.price,
-            currency=obj.currency,
-            description=f"Annulation achat: {obj.item_name} pour {obj.person_name}",
-        ))
+    # Always replace income and expense records with the current truth
+    _sync_purchase_income(db, obj)
+    _sync_purchase_expense(db, obj)
 
     db.commit()
     db.refresh(obj)
