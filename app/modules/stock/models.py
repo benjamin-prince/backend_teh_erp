@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    Enum,
     ForeignKey,
     Index,
     Integer,
@@ -17,7 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
-from app.core.enums import ReservationStatus, StockCategory, StockStatus
+from app.core.enums import ReservationStatus, SerialStatus, StockCategory, StockStatus
 
 
 class Product(Base):
@@ -64,6 +65,8 @@ class Product(Base):
     deleted_at = Column(DateTime, nullable=True)
 
     stock_items = relationship("StockItem", back_populates="product", lazy="select")
+    batches     = relationship("SupplierBatch", back_populates="product", lazy="select")
+    serials     = relationship("SerialNumber",  back_populates="product", lazy="select")
 
     __table_args__ = (
         Index("ix_product_company", "company_id"),
@@ -147,3 +150,70 @@ class Reservation(Base):
     created_by = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ── Batch & Serial Traceability ───────────────────────────────────────────────
+
+class SupplierBatch(Base):
+    """One receiving event from a supplier (BCH-2026-000001)."""
+    __tablename__ = "supplier_batches"
+
+    id            = Column(Integer, primary_key=True)
+    batch_number  = Column(String(50), unique=True, nullable=False, index=True)
+    product_id    = Column(Integer, ForeignKey("products.id"), nullable=False)
+    company_id    = Column(Integer, ForeignKey("companies.id"), nullable=False)
+
+    supplier_name = Column(String(200), nullable=True)
+    quantity      = Column(Integer, nullable=False)
+    unit_cost     = Column(Numeric(14, 2), nullable=True)
+    received_date = Column(DateTime, nullable=False, default=datetime.utcnow)
+    notes         = Column(Text, nullable=True)
+
+    created_by = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+    product = relationship("Product", back_populates="batches")
+    serials = relationship("SerialNumber", back_populates="batch")
+
+    __table_args__ = (
+        Index("ix_batch_company_product", "company_id", "product_id"),
+    )
+
+
+class SerialNumber(Base):
+    """One physical unit — manufacturer serial or TEHTEK-generated (SN-2026-XXXXXXXX)."""
+    __tablename__ = "serial_numbers"
+
+    id            = Column(Integer, primary_key=True)
+    serial_number = Column(String(150), unique=True, nullable=False, index=True)
+    product_id    = Column(Integer, ForeignKey("products.id"), nullable=False)
+    batch_id      = Column(Integer, ForeignKey("supplier_batches.id"), nullable=True)
+    company_id    = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    is_generated  = Column(Boolean, nullable=False, default=False)
+    status        = Column(Enum(SerialStatus), nullable=False, default=SerialStatus.in_stock)
+
+    # Sale
+    customer_id   = Column(Integer, ForeignKey("customers.id"), nullable=True)
+    customer_name = Column(String(200), nullable=True)
+    sold_at       = Column(DateTime, nullable=True)
+
+    # Return
+    returned_at   = Column(DateTime, nullable=True)
+    return_reason = Column(Text, nullable=True)
+
+    notes      = Column(Text, nullable=True)
+    created_by = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True)
+
+    product  = relationship("Product", back_populates="serials")
+    batch    = relationship("SupplierBatch", back_populates="serials")
+    customer = relationship("Customer", foreign_keys=[customer_id])
+
+    __table_args__ = (
+        Index("ix_serial_company", "company_id"),
+        Index("ix_serial_product", "product_id"),
+        Index("ix_serial_status",  "status"),
+    )

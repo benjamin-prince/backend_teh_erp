@@ -604,6 +604,18 @@ class SequenceType(str, Enum):
     contract_number   = "contract_number"
     commission_record = "commission_record"
     payout_number     = "payout_number"
+    batch_number      = "batch_number"
+    serial_number     = "serial_number"
+
+
+# ── 16b. SERIAL / TRACEABILITY ────────────────────────────────────────────────
+
+class SerialStatus(str, Enum):
+    in_stock    = "in_stock"
+    sold        = "sold"
+    returned    = "returned"
+    defective   = "defective"
+    written_off = "written_off"
 
 
 # ── 17. NOTIFICATION ─────────────────────────────────────────────────────────

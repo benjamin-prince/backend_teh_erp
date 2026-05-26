@@ -22,6 +22,8 @@ SEQUENCES = [
     (SequenceType.contract_number,   "CNT",  6, True,  False, False),
     (SequenceType.commission_record, "COM",  6, True,  False, False),
     (SequenceType.payout_number,     "PAY",  6, True,  True,  False),
+    (SequenceType.batch_number,      "BCH",  6, True,  False, False),
+    (SequenceType.serial_number,     "SN",   8, True,  False, False),
 ]
 
 
