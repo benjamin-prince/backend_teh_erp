@@ -444,6 +444,29 @@ def create_purchase(
 ):
     obj = models.PurchaseCommitment(**data.dict())
     db.add(obj)
+
+    is_gift = data.reason.lower().startswith("cadeau")
+
+    # Initial income if money already received at creation
+    if data.amount_received > 0 and not is_gift:
+        db.add(models.PersonalIncome(
+            date=date.today(),
+            source=models.IncomeSource.OTHER,
+            amount=data.amount_received,
+            currency=data.currency,
+            description=f"Remboursement: {data.item_name} ({data.person_name})",
+        ))
+
+    # Expense if created already as bought
+    if data.price and str(getattr(data, 'status', 'pending')) == 'bought':
+        db.add(models.PersonalExpense(
+            date=date.today(),
+            category=models.ExpenseCategory.SHOPPING,
+            amount=data.price,
+            currency=data.currency,
+            description=f"Achat: {data.item_name} pour {data.person_name}",
+        ))
+
     db.commit()
     db.refresh(obj)
     return obj
@@ -459,8 +482,37 @@ def update_purchase(
     obj = db.query(models.PurchaseCommitment).filter(models.PurchaseCommitment.id == purchase_id).first()
     if not obj:
         raise HTTPException(404, "Purchase commitment not found")
+
+    old_amount_received = obj.amount_received or 0.0
+    old_status = obj.status
+
     for k, v in data.dict(exclude_unset=True).items():
         setattr(obj, k, v)
+
+    is_gift = obj.reason.lower().startswith("cadeau")
+
+    # Income: record the delta when more money is received
+    new_amount_received = obj.amount_received or 0.0
+    delta = new_amount_received - old_amount_received
+    if delta > 0 and not is_gift:
+        db.add(models.PersonalIncome(
+            date=date.today(),
+            source=models.IncomeSource.OTHER,
+            amount=delta,
+            currency=obj.currency,
+            description=f"Remboursement: {obj.item_name} ({obj.person_name})",
+        ))
+
+    # Expense: record when status flips to "bought" and a price exists
+    if obj.status == "bought" and old_status != "bought" and obj.price:
+        db.add(models.PersonalExpense(
+            date=date.today(),
+            category=models.ExpenseCategory.SHOPPING,
+            amount=obj.price,
+            currency=obj.currency,
+            description=f"Achat: {obj.item_name} pour {obj.person_name}",
+        ))
+
     db.commit()
     db.refresh(obj)
     return obj
