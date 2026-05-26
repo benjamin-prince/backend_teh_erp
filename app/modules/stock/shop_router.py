@@ -40,6 +40,7 @@ def _to_shop_out(product: Product, db: Session) -> dict:
         "category": product.category,
         "subcategory": product.subcategory,
         "model_number": product.model_number,
+        "condition": product.condition or "new",
         "tags": product.tags,
         "weight_kg": float(product.weight_kg) if product.weight_kg is not None else None,
         "sell_price": float(product.sell_price) if product.sell_price is not None else None,

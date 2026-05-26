@@ -407,6 +407,13 @@ class StockMovementType(str, Enum):
     reservation_released = "reservation_released"
     project_consumed     = "project_consumed"
 
+class ProductCondition(str, Enum):
+    new         = "new"          # Neuf — jamais utilisé, emballage intact
+    used_a      = "used_a"       # Occasion Grade A — comme neuf, emballage ouvert
+    used_b      = "used_b"       # Occasion Grade B — bon état, légères traces
+    used_c      = "used_c"       # Occasion Grade C — fonctionnel, traces visibles
+    refurbished = "refurbished"  # Reconditionné — remis à neuf par technicien
+
 
 # ── 11. ORDER ────────────────────────────────────────────────────────────────
 

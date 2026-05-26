@@ -29,6 +29,8 @@ class ProductCreate(BaseModel):
     min_order_qty: int = 1
     warranty_months: Optional[int] = None
 
+    condition: str = "new"
+
     is_active: bool = True
     is_published: bool = False
     is_featured: bool = False
@@ -59,6 +61,8 @@ class ProductUpdate(BaseModel):
     reorder_level: Optional[int] = None
     min_order_qty: Optional[int] = None
     warranty_months: Optional[int] = None
+
+    condition: Optional[str] = None
 
     is_active: Optional[bool] = None
     is_published: Optional[bool] = None

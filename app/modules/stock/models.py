@@ -18,7 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
-from app.core.enums import ReservationStatus, SerialStatus, StockCategory, StockStatus
+from app.core.enums import ProductCondition, ReservationStatus, SerialStatus, StockCategory, StockStatus
 
 
 class Product(Base):
@@ -50,6 +50,8 @@ class Product(Base):
     reorder_level = Column(Integer, default=5)
     min_order_qty = Column(Integer, default=1)
     warranty_months = Column(Integer, nullable=True)
+
+    condition = Column(String(20), nullable=False, default=ProductCondition.new)
 
     is_active = Column(Boolean, default=True)
     image_url = Column(String(500), nullable=True)
