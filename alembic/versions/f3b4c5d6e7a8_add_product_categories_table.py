@@ -1,14 +1,14 @@
 """Add product_categories table with seeded data
 
-Revision ID: a1b2c3d4e5f6
-Revises: e9f0a1b2c3d4
+Revision ID: f3b4c5d6e7a8
+Revises: d4e5f6a7b8c9
 Create Date: 2026-05-26
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = 'a1b2c3d4e5f6'
-down_revision = 'e9f0a1b2c3d4'
+revision = 'f3b4c5d6e7a8'
+down_revision = 'd4e5f6a7b8c9'
 branch_labels = None
 depends_on = None
 
