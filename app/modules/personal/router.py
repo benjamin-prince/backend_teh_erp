@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from . import models, schemas
 
-router = APIRouter(prefix="/personal", tags=["Personal Life"])
+router = APIRouter(prefix="/api/v1/personal", tags=["Personal Life"])
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
