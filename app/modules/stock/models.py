@@ -53,6 +53,11 @@ class Product(Base):
     is_active = Column(Boolean, default=True)
     image_url = Column(String(500), nullable=True)
 
+    # ── Shop / Website ─────────────────────────────────────────────────────
+    is_published = Column(Boolean, nullable=False, default=False)  # shown on tehtek.com
+    is_featured  = Column(Boolean, nullable=False, default=False)  # in "featured" section
+    compare_price = Column(Numeric(14, 2), nullable=True)  # crossed-out "was" price
+
     created_by = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

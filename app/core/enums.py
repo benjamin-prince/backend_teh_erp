@@ -369,17 +369,21 @@ class PaymentStatus(str, Enum):
 
 class StockCategory(str, Enum):
     electronics        = "electronics"
+    it_equipment       = "it_equipment"
+    printer            = "printer"
+    network_equipment  = "network_equipment"
+    security_equipment = "security_equipment"
+    solar_equipment    = "solar_equipment"
+    storage            = "storage"
+    telecom            = "telecom"
+    tv_av              = "tv_av"
     accessories        = "accessories"
+    consumable         = "consumable"
     office_supplies    = "office_supplies"
     raw_material       = "raw_material"
     finished_good      = "finished_good"
-    consumable         = "consumable"
     spare_part         = "spare_part"
     packaging          = "packaging"
-    solar_equipment    = "solar_equipment"
-    security_equipment = "security_equipment"
-    network_equipment  = "network_equipment"
-    it_equipment       = "it_equipment"
 
 class StockStatus(str, Enum):
     in_stock     = "in_stock"

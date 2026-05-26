@@ -30,6 +30,10 @@ class ProductCreate(BaseModel):
     warranty_months: Optional[int] = None
 
     is_active: bool = True
+    is_published: bool = False
+    is_featured: bool = False
+    compare_price: Optional[float] = None
+    image_url: Optional[str] = None
 
 
 class ProductUpdate(BaseModel):
@@ -57,6 +61,33 @@ class ProductUpdate(BaseModel):
     warranty_months: Optional[int] = None
 
     is_active: Optional[bool] = None
+    is_published: Optional[bool] = None
+    is_featured: Optional[bool] = None
+    compare_price: Optional[float] = None
+    image_url: Optional[str] = None
+
+
+# ── Public shop schema (no cost_price, no internal fields) ────────────────────
+
+class ShopProductOut(BaseModel):
+    id: int
+    sku: str
+    name: str
+    name_fr: Optional[str] = None
+    description: Optional[str] = None
+    brand: Optional[str] = None
+    category: str
+    subcategory: Optional[str] = None
+    tags: Optional[str] = None
+    sell_price: Optional[float] = None
+    compare_price: Optional[float] = None
+    warranty_months: Optional[int] = None
+    image_url: Optional[str] = None
+    is_featured: bool
+    stock_available: int  # total available qty across all warehouses
+
+    class Config:
+        from_attributes = True
 
 
 class StockMovementCreate(BaseModel):

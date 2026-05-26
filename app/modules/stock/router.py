@@ -88,6 +88,10 @@ def create_product(
         min_order_qty=body.min_order_qty,
         warranty_months=body.warranty_months,
         is_active=body.is_active,
+        is_published=body.is_published,
+        is_featured=body.is_featured,
+        compare_price=body.compare_price,
+        image_url=body.image_url,
     )
 
     db.add(p)
@@ -194,12 +198,21 @@ def update_product(
         "min_order_qty": "min_order_qty",
         "warranty_months": "warranty_months",
         "is_active": "is_active",
+        "is_published": "is_published",
+        "is_featured": "is_featured",
+        "compare_price": "compare_price",
+        "image_url": "image_url",
     }
 
     for schema_field, model_field in fields.items():
-        value = getattr(body, schema_field)
+        value = getattr(body, schema_field, None)
         if value is not None:
             setattr(p, model_field, value)
+    # Booleans need explicit False check
+    for bool_field in ("is_active", "is_published", "is_featured"):
+        v = getattr(body, bool_field, None)
+        if v is False:
+            setattr(p, bool_field, False)
 
     if body.selling_price is not None:
         p.sell_price = body.selling_price

@@ -81,6 +81,7 @@ from app.modules.personal.router import router as personal_router  # ← NEW
 from app.modules.cargo.route_router import router as cargo_routes_router
 from app.modules.currencies.router import router as currencies_router
 from app.modules.currencies.models import Currency  # noqa: F401
+from app.modules.stock.shop_router import router as shop_router
 
 logger = logging.getLogger("tehtek")
 
@@ -198,3 +199,4 @@ app.include_router(service_projects_router)
 app.include_router(service_types_router)
 app.include_router(personal_router)
 app.include_router(currencies_router)
+app.include_router(shop_router)  # public — no auth
