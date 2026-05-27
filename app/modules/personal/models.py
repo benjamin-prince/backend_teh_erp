@@ -190,6 +190,24 @@ class PersonalDebt(Base):
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
     updated_at    = Column(DateTime(timezone=True), onupdate=func.now())
 
+    payments      = relationship("PersonalDebtPayment", back_populates="debt",
+                                 cascade="all, delete-orphan", order_by="PersonalDebtPayment.payment_date")
+
+
+class PersonalDebtPayment(Base):
+    """Partial or full payment made toward a PersonalDebt."""
+    __tablename__ = "personal_debt_payments"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    debt_id      = Column(Integer, ForeignKey("personal_debts.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount       = Column(Float, nullable=False)
+    currency     = Column(String(10), nullable=False, default="XAF")
+    payment_date = Column(Date, nullable=False)
+    notes        = Column(Text, nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+    debt = relationship("PersonalDebt", back_populates="payments")
+
 
 class DailySummary(Base):
     """Auto-computed or manually enriched daily note"""

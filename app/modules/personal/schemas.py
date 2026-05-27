@@ -319,6 +319,26 @@ class PersonalDebtUpdate(BaseModel):
     notes:         Optional[str] = None
 
 
+class DebtPaymentCreate(BaseModel):
+    amount:       float = Field(..., gt=0)
+    currency:     str = "XAF"
+    payment_date: date
+    notes:        Optional[str] = None
+
+
+class DebtPaymentOut(BaseModel):
+    id:           int
+    debt_id:      int
+    amount:       float
+    currency:     str
+    payment_date: date
+    notes:        Optional[str]
+    created_at:   datetime
+
+    class Config:
+        from_attributes = True
+
+
 class PersonalDebtOut(BaseModel):
     id:            int
     creditor:      str
@@ -331,6 +351,8 @@ class PersonalDebtOut(BaseModel):
     paid_date:     Optional[date]
     notes:         Optional[str]
     created_at:    datetime
+    paid_amount:   float = 0.0        # sum of payments in same currency
+    payments:      list[DebtPaymentOut] = []
 
     class Config:
         from_attributes = True

@@ -533,6 +533,18 @@ def delete_purchase(
 
 # ── Personal Debts ────────────────────────────────────────────────────────────
 
+def _debt_out(obj: models.PersonalDebt) -> schemas.PersonalDebtOut:
+    """Enrich a PersonalDebt ORM object with computed paid_amount."""
+    paid_amount = sum(p.amount for p in obj.payments if p.currency == obj.currency)
+    return schemas.PersonalDebtOut(
+        id=obj.id, creditor=obj.creditor, amount=obj.amount, currency=obj.currency,
+        reason=obj.reason, borrowed_date=obj.borrowed_date, due_date=obj.due_date,
+        is_paid=obj.is_paid, paid_date=obj.paid_date, notes=obj.notes,
+        created_at=obj.created_at, paid_amount=round(paid_amount, 2),
+        payments=[schemas.DebtPaymentOut.model_validate(p) for p in obj.payments],
+    )
+
+
 @router.get("/debts", response_model=List[schemas.PersonalDebtOut])
 def list_debts(
     status: Optional[str] = Query("active", pattern="^(active|paid|all)$"),
@@ -545,7 +557,8 @@ def list_debts(
         q = q.filter(models.PersonalDebt.is_paid == False)
     elif status == "paid":
         q = q.filter(models.PersonalDebt.is_paid == True)
-    return q.order_by(models.PersonalDebt.due_date.asc().nullslast(), models.PersonalDebt.borrowed_date.desc()).all()
+    items = q.order_by(models.PersonalDebt.due_date.asc().nullslast(), models.PersonalDebt.borrowed_date.desc()).all()
+    return [_debt_out(d) for d in items]
 
 
 @router.post("/debts", response_model=schemas.PersonalDebtOut, status_code=201)
@@ -558,7 +571,7 @@ def create_debt(
     db.add(obj)
     db.commit()
     db.refresh(obj)
-    return obj
+    return _debt_out(obj)
 
 
 @router.patch("/debts/{debt_id}", response_model=schemas.PersonalDebtOut)
@@ -578,7 +591,7 @@ def update_debt(
         obj.paid_date = date.today()
     db.commit()
     db.refresh(obj)
-    return obj
+    return _debt_out(obj)
 
 
 @router.delete("/debts/{debt_id}", status_code=204)
@@ -591,4 +604,61 @@ def delete_debt(
     if not obj:
         raise HTTPException(404, "Debt not found")
     db.delete(obj)
+    db.commit()
+
+
+# ── Debt Payments (repayment plan tracking) ───────────────────────────────────
+
+@router.get("/debts/{debt_id}/payments", response_model=List[schemas.DebtPaymentOut])
+def list_payments(
+    debt_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    debt = db.query(models.PersonalDebt).filter(models.PersonalDebt.id == debt_id).first()
+    if not debt:
+        raise HTTPException(404, "Debt not found")
+    return debt.payments
+
+
+@router.post("/debts/{debt_id}/payments", response_model=schemas.DebtPaymentOut, status_code=201)
+def add_payment(
+    debt_id: int,
+    data: schemas.DebtPaymentCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    debt = db.query(models.PersonalDebt).filter(models.PersonalDebt.id == debt_id).first()
+    if not debt:
+        raise HTTPException(404, "Debt not found")
+    payment = models.PersonalDebtPayment(debt_id=debt_id, **data.model_dump())
+    db.add(payment)
+    # auto-mark debt as paid if total paid_amount >= debt.amount (same currency)
+    db.flush()
+    total_paid = sum(
+        p.amount for p in debt.payments
+        if p.currency == debt.currency
+    ) + (data.amount if data.currency == debt.currency else 0)
+    if total_paid >= debt.amount and not debt.is_paid:
+        debt.is_paid = True
+        debt.paid_date = data.payment_date
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
+@router.delete("/debts/{debt_id}/payments/{payment_id}", status_code=204)
+def delete_payment(
+    debt_id: int,
+    payment_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    payment = db.query(models.PersonalDebtPayment).filter(
+        models.PersonalDebtPayment.id == payment_id,
+        models.PersonalDebtPayment.debt_id == debt_id,
+    ).first()
+    if not payment:
+        raise HTTPException(404, "Payment not found")
+    db.delete(payment)
     db.commit()
