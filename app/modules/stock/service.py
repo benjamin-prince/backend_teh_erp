@@ -123,6 +123,7 @@ def product_out(p: Product) -> dict:
         "is_featured": bool(p.is_featured) if p.is_featured is not None else False,
         "compare_price": float(p.compare_price) if p.compare_price else None,
         "image_url": p.image_url,
+        "image_urls": p.image_urls or [],
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "updated_at": p.updated_at.isoformat() if p.updated_at else None,
     }

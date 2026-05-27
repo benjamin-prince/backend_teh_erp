@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     Numeric,
     String,
     Text,
@@ -75,7 +76,8 @@ class Product(Base):
     condition = Column(String(20), nullable=False, default=ProductCondition.new)
 
     is_active = Column(Boolean, default=True)
-    image_url = Column(String(500), nullable=True)
+    image_url  = Column(String(500), nullable=True)
+    image_urls = Column(JSON, nullable=True)        # up to 10 image URLs
 
     # ── Shop / Website ─────────────────────────────────────────────────────
     is_published = Column(Boolean, nullable=False, default=False)  # shown on tehtek.com

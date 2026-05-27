@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -76,6 +76,7 @@ class ProductCreate(BaseModel):
     is_featured: bool = False
     compare_price: Optional[float] = None
     image_url: Optional[str] = None
+    image_urls: Optional[List[str]] = None   # up to 10 images
 
 
 class ProductUpdate(BaseModel):
@@ -109,6 +110,7 @@ class ProductUpdate(BaseModel):
     is_featured: Optional[bool] = None
     compare_price: Optional[float] = None
     image_url: Optional[str] = None
+    image_urls: Optional[List[str]] = None   # up to 10 images
 
 
 # ── Public shop schema (no cost_price, no internal fields) ────────────────────
@@ -127,6 +129,7 @@ class ShopProductOut(BaseModel):
     compare_price: Optional[float] = None
     warranty_months: Optional[int] = None
     image_url: Optional[str] = None
+    image_urls: Optional[List[str]] = None
     is_featured: bool
     stock_available: int  # total available qty across all warehouses
 

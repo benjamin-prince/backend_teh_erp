@@ -97,6 +97,7 @@ def create_product(
         is_featured=body.is_featured,
         compare_price=body.compare_price,
         image_url=body.image_url,
+        image_urls=body.image_urls or [],
     )
 
     db.add(p)
@@ -208,6 +209,7 @@ def update_product(
         "is_featured": "is_featured",
         "compare_price": "compare_price",
         "image_url": "image_url",
+        "image_urls": "image_urls",
     }
 
     for schema_field, model_field in fields.items():
