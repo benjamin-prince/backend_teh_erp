@@ -533,14 +533,31 @@ def delete_purchase(
 
 # ── Personal Debts ────────────────────────────────────────────────────────────
 
+def _compute_interest(amount: float, rate: float | None, period: str | None, start: date) -> float:
+    """Simple interest: amount × rate% × n_periods elapsed since start."""
+    if not rate or not period:
+        return 0.0
+    today = date.today()
+    days = (today - start).days
+    if days <= 0:
+        return 0.0
+    periods_per_year = {"daily": 365, "weekly": 52, "monthly": 12, "yearly": 1}.get(period, 1)
+    n_periods = days / (365 / periods_per_year)
+    return round(amount * (rate / 100) * n_periods, 2)
+
+
 def _debt_out(obj: models.PersonalDebt) -> schemas.PersonalDebtOut:
-    """Enrich a PersonalDebt ORM object with computed paid_amount."""
+    """Enrich a PersonalDebt ORM object with paid_amount and total_with_interest."""
     paid_amount = sum(p.amount for p in obj.payments if p.currency == obj.currency)
+    interest = _compute_interest(obj.amount, obj.interest_rate, obj.interest_period, obj.borrowed_date)
     return schemas.PersonalDebtOut(
-        id=obj.id, creditor=obj.creditor, amount=obj.amount, currency=obj.currency,
+        id=obj.id, creditor=obj.creditor, debt_type=obj.debt_type or "personal",
+        amount=obj.amount, currency=obj.currency,
         reason=obj.reason, borrowed_date=obj.borrowed_date, due_date=obj.due_date,
         is_paid=obj.is_paid, paid_date=obj.paid_date, notes=obj.notes,
+        interest_rate=obj.interest_rate, interest_period=obj.interest_period,
         created_at=obj.created_at, paid_amount=round(paid_amount, 2),
+        total_with_interest=round(obj.amount + interest, 2),
         payments=[schemas.DebtPaymentOut.model_validate(p) for p in obj.payments],
     )
 

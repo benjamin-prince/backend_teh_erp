@@ -177,18 +177,23 @@ class PersonalDebt(Base):
     """Money I owe to someone."""
     __tablename__ = "personal_debts"
 
-    id            = Column(Integer, primary_key=True, index=True)
-    creditor      = Column(String(200), nullable=False)          # who I owe money to
-    amount        = Column(Float, nullable=False)                # original amount borrowed
-    currency      = Column(String(10), nullable=False, default="XAF")
-    reason        = Column(String(500), nullable=True)           # why I borrowed
-    borrowed_date = Column(Date, nullable=False)
-    due_date      = Column(Date, nullable=True)                  # deadline to repay
-    is_paid       = Column(Boolean, nullable=False, default=False)
-    paid_date     = Column(Date, nullable=True)
-    notes         = Column(Text, nullable=True)
-    created_at    = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at    = Column(DateTime(timezone=True), onupdate=func.now())
+    id              = Column(Integer, primary_key=True, index=True)
+    creditor        = Column(String(200), nullable=False)          # who I owe money to
+    debt_type       = Column(String(20), nullable=False, default="personal")
+    # types: personal | loan | credit_card | collection | other
+    amount          = Column(Float, nullable=False)                # original amount borrowed
+    currency        = Column(String(10), nullable=False, default="XAF")
+    reason          = Column(String(500), nullable=True)           # why I borrowed
+    borrowed_date   = Column(Date, nullable=False)
+    due_date        = Column(Date, nullable=True)                  # deadline to repay
+    is_paid         = Column(Boolean, nullable=False, default=False)
+    paid_date       = Column(Date, nullable=True)
+    notes           = Column(Text, nullable=True)
+    # interest tracking
+    interest_rate   = Column(Float, nullable=True)                 # e.g. 5.0 = 5% per period
+    interest_period = Column(String(20), nullable=True)            # "monthly" | "yearly" | "daily" | "weekly"
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at      = Column(DateTime(timezone=True), onupdate=func.now())
 
     payments      = relationship("PersonalDebtPayment", back_populates="debt",
                                  cascade="all, delete-orphan", order_by="PersonalDebtPayment.payment_date")

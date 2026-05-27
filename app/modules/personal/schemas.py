@@ -297,26 +297,36 @@ class PurchaseCommitmentOut(BaseModel):
 
 # ── Personal Debt ─────────────────────────────────────────────────────────────
 
+DEBT_TYPES = ["personal", "loan", "credit_card", "collection", "other"]
+INTEREST_PERIODS = ["daily", "weekly", "monthly", "yearly"]
+
+
 class PersonalDebtCreate(BaseModel):
-    creditor:      str
-    amount:        float = Field(..., gt=0)
-    currency:      str = "XAF"
-    reason:        Optional[str] = None
-    borrowed_date: date
-    due_date:      Optional[date] = None
-    notes:         Optional[str] = None
+    creditor:        str
+    debt_type:       str = "personal"
+    amount:          float = Field(..., gt=0)
+    currency:        str = "XAF"
+    reason:          Optional[str] = None
+    borrowed_date:   date
+    due_date:        Optional[date] = None
+    notes:           Optional[str] = None
+    interest_rate:   Optional[float] = Field(None, ge=0)
+    interest_period: Optional[str] = None
 
 
 class PersonalDebtUpdate(BaseModel):
-    creditor:      Optional[str] = None
-    amount:        Optional[float] = Field(None, gt=0)
-    currency:      Optional[str] = None
-    reason:        Optional[str] = None
-    borrowed_date: Optional[date] = None
-    due_date:      Optional[date] = None
-    is_paid:       Optional[bool] = None
-    paid_date:     Optional[date] = None
-    notes:         Optional[str] = None
+    creditor:        Optional[str] = None
+    debt_type:       Optional[str] = None
+    amount:          Optional[float] = Field(None, gt=0)
+    currency:        Optional[str] = None
+    reason:          Optional[str] = None
+    borrowed_date:   Optional[date] = None
+    due_date:        Optional[date] = None
+    is_paid:         Optional[bool] = None
+    paid_date:       Optional[date] = None
+    notes:           Optional[str] = None
+    interest_rate:   Optional[float] = Field(None, ge=0)
+    interest_period: Optional[str] = None
 
 
 class DebtPaymentCreate(BaseModel):
@@ -340,19 +350,23 @@ class DebtPaymentOut(BaseModel):
 
 
 class PersonalDebtOut(BaseModel):
-    id:            int
-    creditor:      str
-    amount:        float
-    currency:      str
-    reason:        Optional[str]
-    borrowed_date: date
-    due_date:      Optional[date]
-    is_paid:       bool
-    paid_date:     Optional[date]
-    notes:         Optional[str]
-    created_at:    datetime
-    paid_amount:   float = 0.0        # sum of payments in same currency
-    payments:      list[DebtPaymentOut] = []
+    id:                  int
+    creditor:            str
+    debt_type:           str
+    amount:              float
+    currency:            str
+    reason:              Optional[str]
+    borrowed_date:       date
+    due_date:            Optional[date]
+    is_paid:             bool
+    paid_date:           Optional[date]
+    notes:               Optional[str]
+    interest_rate:       Optional[float]
+    interest_period:     Optional[str]
+    created_at:          datetime
+    paid_amount:         float = 0.0        # sum of payments in same currency
+    total_with_interest: float = 0.0        # original + accrued interest as of today
+    payments:            list[DebtPaymentOut] = []
 
     class Config:
         from_attributes = True
