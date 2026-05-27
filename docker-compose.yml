@@ -23,7 +23,7 @@ services:
 
   # ─── FastAPI Backend ───────────────────────────────────────────────────────
   backend:
-    build: .
+    image: boulaz2002/tehtek-backend:latest
     container_name: ${BACKEND_CONTAINER_NAME}
     restart: unless-stopped
     env_file:
