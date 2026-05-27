@@ -295,6 +295,47 @@ class PurchaseCommitmentOut(BaseModel):
         from_attributes = True
 
 
+# ── Personal Debt ─────────────────────────────────────────────────────────────
+
+class PersonalDebtCreate(BaseModel):
+    creditor:      str
+    amount:        float = Field(..., gt=0)
+    currency:      str = "XAF"
+    reason:        Optional[str] = None
+    borrowed_date: date
+    due_date:      Optional[date] = None
+    notes:         Optional[str] = None
+
+
+class PersonalDebtUpdate(BaseModel):
+    creditor:      Optional[str] = None
+    amount:        Optional[float] = Field(None, gt=0)
+    currency:      Optional[str] = None
+    reason:        Optional[str] = None
+    borrowed_date: Optional[date] = None
+    due_date:      Optional[date] = None
+    is_paid:       Optional[bool] = None
+    paid_date:     Optional[date] = None
+    notes:         Optional[str] = None
+
+
+class PersonalDebtOut(BaseModel):
+    id:            int
+    creditor:      str
+    amount:        float
+    currency:      str
+    reason:        Optional[str]
+    borrowed_date: date
+    due_date:      Optional[date]
+    is_paid:       bool
+    paid_date:     Optional[date]
+    notes:         Optional[str]
+    created_at:    datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ── Dashboard Stats ───────────────────────────────────────────────────────────
 
 class PersonalDashboardStats(BaseModel):

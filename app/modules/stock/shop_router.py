@@ -11,7 +11,7 @@ Endpoints:
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -76,13 +76,27 @@ def list_shop_products(
     if featured is True:
         q = q.filter(Product.is_featured == True)  # noqa: E712
     if search:
-        term = f"%{search}%"
-        q = q.filter(
-            Product.name.ilike(term)
-            | Product.name_fr.ilike(term)
-            | Product.brand.ilike(term)
-            | Product.description.ilike(term)
-        )
+        words = [w.strip() for w in search.split() if w.strip()]
+        if words:
+            def _word_match(word: str):
+                """Match a single word against all searchable text fields."""
+                t = f"%{word}%"
+                return (
+                    Product.name.ilike(t)
+                    | Product.name_fr.ilike(t)
+                    | Product.brand.ilike(t)
+                    | Product.model_number.ilike(t)
+                    | Product.description.ilike(t)
+                    | Product.sku.ilike(t)
+                )
+
+            # Strict: every word must appear somewhere (any order, any field)
+            q_strict = q.filter(*[_word_match(w) for w in words])
+            if q_strict.count() > 0:
+                q = q_strict
+            else:
+                # Fallback: at least one word matches — show something rather than nothing
+                q = q.filter(or_(*[_word_match(w) for w in words]))
 
     total = q.count()
     products = (

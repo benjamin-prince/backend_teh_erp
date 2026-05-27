@@ -86,6 +86,7 @@ from app.modules.stock.shop_router import router as shop_router
 from app.modules.stock.serial_router import router as serial_router
 from app.modules.stock.category_router import router as category_router
 from app.modules.stock.shop_payment_router import router as shop_payment_router
+from app.modules.stock.shop_auth_router import router as shop_auth_router
 
 logger = logging.getLogger("tehtek")
 
@@ -205,5 +206,6 @@ app.include_router(personal_router)
 app.include_router(currencies_router)
 app.include_router(shop_router)         # public — no auth
 app.include_router(shop_payment_router) # public — checkout & payment webhooks
+app.include_router(shop_auth_router)    # public — customer portal auth
 app.include_router(serial_router)       # traceability — auth via router dependency
 app.include_router(category_router)     # category taxonomy — authenticated

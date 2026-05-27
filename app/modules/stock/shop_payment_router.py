@@ -36,9 +36,10 @@ router = APIRouter(prefix="/api/v1/shop", tags=["shop-payment"])
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-FAPSHI_API_USER   = os.getenv("FAPSHI_API_USER", "")
-FAPSHI_API_KEY    = os.getenv("FAPSHI_API_KEY", "")
-FAPSHI_BASE_URL   = os.getenv("FAPSHI_BASE_URL", "https://live.fapshi.com")
+FAPSHI_API_USER      = os.getenv("FAPSHI_API_USER", "")
+FAPSHI_API_KEY       = os.getenv("FAPSHI_API_KEY", "")
+FAPSHI_BASE_URL      = os.getenv("FAPSHI_BASE_URL", "https://live.fapshi.com")
+FAPSHI_WEBHOOK_SECRET = os.getenv("FAPSHI_WEBHOOK_SECRET", "")
 
 PAYPAL_CLIENT_ID  = os.getenv("PAYPAL_CLIENT_ID", "")
 PAYPAL_SECRET     = os.getenv("PAYPAL_CLIENT_SECRET", "")
@@ -78,14 +79,24 @@ def _fapshi_headers() -> dict:
     return {"apiuser": FAPSHI_API_USER, "apikey": FAPSHI_API_KEY}
 
 
-async def _fapshi_initiate(order_ref: str, amount: int, email: str | None,
-                            description: str) -> dict:
-    """Call Fapshi /initiate-pay and return {transId, payLink}."""
+async def _fapshi_initiate(
+    order_ref: str,
+    amount: int,
+    description: str,
+    email: str | None = None,
+) -> dict:
+    """Call Fapshi /initiate-pay and return {transId, payLink}.
+
+    Fapshi API fields (camelCase per docs): amount, message, email,
+    redirectUrl, externalId, userId.
+    Note: name and phone pre-fill are NOT supported by Fapshi.
+    Webhook URL is configured once in the Fapshi dashboard, not per request.
+    """
     payload = {
-        "amount":       amount,
-        "message":      description,
-        "redirect_url": f"{SHOP_BASE_URL}/order/{order_ref}",
-        "webhook_url":  f"{API_BASE_URL}/shop/payment/fapshi/webhook",
+        "amount":      amount,
+        "message":     description,
+        "redirectUrl": f"{SHOP_BASE_URL}/order/{order_ref}",
+        "externalId":  order_ref,   # for reconciliation in Fapshi dashboard
     }
     if email:
         payload["email"] = email
@@ -211,8 +222,8 @@ async def create_checkout(body: CheckoutRequest, db: Session = Depends(get_db)):
             fapshi_data = await _fapshi_initiate(
                 order_ref   = order_ref,
                 amount      = int(round(subtotal)),
-                email       = body.customer_email,
                 description = f"Commande TEHTEK {order_ref}",
+                email       = body.customer_email,
             )
             order.payment_ref = fapshi_data.get("transId") or fapshi_data.get("transaction_id")
             response["pay_link"] = fapshi_data.get("payLink") or fapshi_data.get("link")
@@ -265,8 +276,15 @@ async def fapshi_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Fapshi calls this URL after payment.
     Fapshi sends JSON: {event, data: {transId, status, amount, ...}}.
-    We verify via GET /payment-status/{transId}.
+    Authenticated via x-wh-secret header, then verified via GET /payment-status/{transId}.
     """
+    # ── Verify webhook secret ─────────────────────────────────────────────
+    if FAPSHI_WEBHOOK_SECRET:
+        incoming = request.headers.get("x-wh-secret", "")
+        if incoming != FAPSHI_WEBHOOK_SECRET:
+            logger.warning("Fapshi webhook: invalid secret — rejected")
+            return {"ok": True}  # always 200 to avoid Fapshi retries
+
     try:
         payload = await request.json()
     except Exception:

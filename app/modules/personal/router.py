@@ -529,3 +529,66 @@ def delete_purchase(
         raise HTTPException(404, "Purchase commitment not found")
     db.delete(obj)
     db.commit()
+
+
+# ── Personal Debts ────────────────────────────────────────────────────────────
+
+@router.get("/debts", response_model=List[schemas.PersonalDebtOut])
+def list_debts(
+    status: Optional[str] = Query("active", pattern="^(active|paid|all)$"),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """List debts. status=active (default) | paid | all"""
+    q = db.query(models.PersonalDebt)
+    if status == "active":
+        q = q.filter(models.PersonalDebt.is_paid == False)
+    elif status == "paid":
+        q = q.filter(models.PersonalDebt.is_paid == True)
+    return q.order_by(models.PersonalDebt.due_date.asc().nullslast(), models.PersonalDebt.borrowed_date.desc()).all()
+
+
+@router.post("/debts", response_model=schemas.PersonalDebtOut, status_code=201)
+def create_debt(
+    data: schemas.PersonalDebtCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    obj = models.PersonalDebt(**data.model_dump())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.patch("/debts/{debt_id}", response_model=schemas.PersonalDebtOut)
+def update_debt(
+    debt_id: int,
+    data: schemas.PersonalDebtUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    obj = db.query(models.PersonalDebt).filter(models.PersonalDebt.id == debt_id).first()
+    if not obj:
+        raise HTTPException(404, "Debt not found")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(obj, field, value)
+    # auto-set paid_date when marking paid if not provided
+    if data.is_paid and not obj.paid_date:
+        obj.paid_date = date.today()
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.delete("/debts/{debt_id}", status_code=204)
+def delete_debt(
+    debt_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    obj = db.query(models.PersonalDebt).filter(models.PersonalDebt.id == debt_id).first()
+    if not obj:
+        raise HTTPException(404, "Debt not found")
+    db.delete(obj)
+    db.commit()

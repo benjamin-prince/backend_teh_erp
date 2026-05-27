@@ -173,6 +173,24 @@ class PurchaseCommitment(Base):
     updated_at       = Column(DateTime(timezone=True), onupdate=func.now())
 
 
+class PersonalDebt(Base):
+    """Money I owe to someone."""
+    __tablename__ = "personal_debts"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    creditor      = Column(String(200), nullable=False)          # who I owe money to
+    amount        = Column(Float, nullable=False)                # original amount borrowed
+    currency      = Column(String(10), nullable=False, default="XAF")
+    reason        = Column(String(500), nullable=True)           # why I borrowed
+    borrowed_date = Column(Date, nullable=False)
+    due_date      = Column(Date, nullable=True)                  # deadline to repay
+    is_paid       = Column(Boolean, nullable=False, default=False)
+    paid_date     = Column(Date, nullable=True)
+    notes         = Column(Text, nullable=True)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at    = Column(DateTime(timezone=True), onupdate=func.now())
+
+
 class DailySummary(Base):
     """Auto-computed or manually enriched daily note"""
     __tablename__ = "personal_daily_summary"
