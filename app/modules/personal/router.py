@@ -556,6 +556,9 @@ def _debt_out(obj: models.PersonalDebt) -> schemas.PersonalDebtOut:
         reason=obj.reason, borrowed_date=obj.borrowed_date, due_date=obj.due_date,
         is_paid=obj.is_paid, paid_date=obj.paid_date, notes=obj.notes,
         interest_rate=obj.interest_rate, interest_period=obj.interest_period,
+        priority=obj.priority,
+        plan_amount=obj.plan_amount, plan_frequency=obj.plan_frequency,
+        plan_start_date=obj.plan_start_date, plan_notes=obj.plan_notes,
         created_at=obj.created_at, paid_amount=round(paid_amount, 2),
         total_with_interest=round(obj.amount + interest, 2),
         payments=[schemas.DebtPaymentOut.model_validate(p) for p in obj.payments],
@@ -574,7 +577,11 @@ def list_debts(
         q = q.filter(models.PersonalDebt.is_paid == False)
     elif status == "paid":
         q = q.filter(models.PersonalDebt.is_paid == True)
-    items = q.order_by(models.PersonalDebt.due_date.asc().nullslast(), models.PersonalDebt.borrowed_date.desc()).all()
+    items = q.order_by(
+        models.PersonalDebt.priority.desc().nulls_last(),
+        models.PersonalDebt.due_date.asc().nulls_last(),
+        models.PersonalDebt.borrowed_date.desc(),
+    ).all()
     return [_debt_out(d) for d in items]
 
 

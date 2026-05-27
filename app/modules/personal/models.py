@@ -192,6 +192,13 @@ class PersonalDebt(Base):
     # interest tracking
     interest_rate   = Column(Float, nullable=True)                 # e.g. 5.0 = 5% per period
     interest_period = Column(String(20), nullable=True)            # "monthly" | "yearly" | "daily" | "weekly"
+    # priority: 1–10 (10 = most urgent), None = "can wait" (excluded from totals, no pressure)
+    priority        = Column(Integer, nullable=True)
+    # repayment plan
+    plan_amount     = Column(Float,       nullable=True)           # planned payment per period
+    plan_frequency  = Column(String(20),  nullable=True)           # weekly|biweekly|monthly|quarterly|yearly
+    plan_start_date = Column(Date,        nullable=True)           # first planned payment date
+    plan_notes      = Column(Text,        nullable=True)           # written plan description
     created_at      = Column(DateTime(timezone=True), server_default=func.now())
     updated_at      = Column(DateTime(timezone=True), onupdate=func.now())
 

@@ -312,6 +312,11 @@ class PersonalDebtCreate(BaseModel):
     notes:           Optional[str] = None
     interest_rate:   Optional[float] = Field(None, ge=0)
     interest_period: Optional[str] = None
+    priority:        Optional[int]  = Field(None, ge=1, le=10)
+    plan_amount:     Optional[float] = Field(None, gt=0)
+    plan_frequency:  Optional[str]  = None
+    plan_start_date: Optional[date] = None
+    plan_notes:      Optional[str]  = None
 
 
 class PersonalDebtUpdate(BaseModel):
@@ -327,6 +332,11 @@ class PersonalDebtUpdate(BaseModel):
     notes:           Optional[str] = None
     interest_rate:   Optional[float] = Field(None, ge=0)
     interest_period: Optional[str] = None
+    priority:        Optional[int]  = Field(None, ge=1, le=10)
+    plan_amount:     Optional[float] = Field(None, gt=0)
+    plan_frequency:  Optional[str]  = None
+    plan_start_date: Optional[date] = None
+    plan_notes:      Optional[str]  = None
 
 
 class DebtPaymentCreate(BaseModel):
@@ -363,6 +373,11 @@ class PersonalDebtOut(BaseModel):
     notes:               Optional[str]
     interest_rate:       Optional[float]
     interest_period:     Optional[str]
+    priority:            Optional[int]
+    plan_amount:         Optional[float]
+    plan_frequency:      Optional[str]
+    plan_start_date:     Optional[date]
+    plan_notes:          Optional[str]
     created_at:          datetime
     paid_amount:         float = 0.0        # sum of payments in same currency
     total_with_interest: float = 0.0        # original + accrued interest as of today
