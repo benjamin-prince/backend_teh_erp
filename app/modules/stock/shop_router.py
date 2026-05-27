@@ -47,6 +47,7 @@ def _to_shop_out(product: Product, db: Session) -> dict:
         "compare_price": float(product.compare_price) if product.compare_price is not None else None,
         "warranty_months": product.warranty_months,
         "image_url": product.image_url,
+        "image_urls": product.image_urls or [],
         "is_featured": bool(product.is_featured),
         "stock_available": available,
     }
