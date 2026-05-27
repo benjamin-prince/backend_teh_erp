@@ -1,8 +1,12 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+import cloudinary
+import cloudinary.uploader
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
+
+from app.core.config import settings
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_permission
@@ -397,3 +401,32 @@ def create_reservation(
     db.refresh(reservation)
 
     return reservation
+
+
+# ── Product image upload ───────────────────────────────────────────────────────
+
+@router.post("/products/upload-image")
+def upload_product_image(
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+):
+    """Upload a product image to Cloudinary. Returns { url }."""
+    if not (settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY and settings.CLOUDINARY_API_SECRET):
+        raise HTTPException(503, "Cloudinary not configured on this server")
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(400, "Only image files are accepted")
+
+    cloudinary.config(
+        cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+        api_key=settings.CLOUDINARY_API_KEY,
+        api_secret=settings.CLOUDINARY_API_SECRET,
+    )
+
+    result = cloudinary.uploader.upload(
+        file.file,
+        folder="tehtek/products",
+        resource_type="image",
+    )
+
+    return {"url": result["secure_url"]}
