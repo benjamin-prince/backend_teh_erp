@@ -1,13 +1,8 @@
-import hashlib
-import time
 from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
-
-from app.core.config import settings
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_permission
@@ -402,34 +397,3 @@ def create_reservation(
     db.refresh(reservation)
 
     return reservation
-
-
-# ── Cloudinary signed upload (product images) ──────────────────────────────────
-
-class CloudinarySignResponse(BaseModel):
-    signature:  str
-    timestamp:  int
-    api_key:    str
-    cloud_name: str
-    folder:     str
-
-@router.post("/uploads/cloudinary-signature", response_model=CloudinarySignResponse)
-def product_image_upload_signature(
-    current_user=Depends(get_current_user),
-):
-    """Return a short-lived signed payload for direct browser → Cloudinary upload (product images)."""
-    if not (settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY and settings.CLOUDINARY_API_SECRET):
-        raise HTTPException(503, "Cloudinary not configured")
-
-    folder    = "tehtek/products"
-    timestamp = int(time.time())
-    to_sign   = f"folder={folder}&timestamp={timestamp}{settings.CLOUDINARY_API_SECRET}"
-    signature = hashlib.sha1(to_sign.encode()).hexdigest()
-
-    return CloudinarySignResponse(
-        signature=signature,
-        timestamp=timestamp,
-        api_key=settings.CLOUDINARY_API_KEY,
-        cloud_name=settings.CLOUDINARY_CLOUD_NAME,
-        folder=folder,
-    )
