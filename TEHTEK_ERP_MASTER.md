@@ -1,9 +1,20 @@
 # TEHTEK ERP — Master Project Context
-# Version: 2.4 | April 2026
+# Version: 2.5 | May 2026
 # App Version: 1.2.0
 # Owner: Benjamin Boule Fogang
 # Purpose: Paste into Claude at the start of every session.
 # End every session with: "Update the master file."
+# Changelog v2.5 / App v1.2.0 (infrastructure fixes — no code changes):
+#   - Fixed shop (tehtek.com) offline: tehtek_shop was on default bridge network,
+#     not backend_internal — Caddy couldn't resolve it. Fixed with network connect + restart.
+#   - Fixed Caddyfile: on-disk /opt/backend/Caddyfile and local backend/Caddyfile both
+#     only had api2.tehtek.com — app.tehtek.com and tehtek.com blocks were missing.
+#     A Caddy restart would have broken frontend + shop permanently. Fixed + committed.
+#   - Ran caddy fmt — Caddyfile now formatted and lint-clean.
+#   - Confirmed all three deploy.sh scripts (backend, frontend, shop) are correct and
+#     match actual running containers. Updated memory with accurate deploy commands.
+#   - All four public URLs verified: api2.tehtek.com, app.tehtek.com,
+#     tehtek.com, www.tehtek.com — all returning 200.
 # Changelog v2.4 / App v1.2.0:
 #   - must_change_password field added to User model (DB column)
 #   - Seeded superadmin created with must_change_password=True
@@ -96,25 +107,37 @@ Routes: USA / Europe / China ↔ Cameroon + local delivery
 
 ## 🖥️ INFRASTRUCTURE
 
-### NEW Backend — Live on VPS 1 (App v1.2.0)
-- **URL pattern:** `https://api2.tehtek.com/api/v1/...`
-- **Stack:** FastAPI + SQLAlchemy 2.0 sync + PostgreSQL 16 + Docker + Caddy
-- **Status:** Deployed. All core modules running in production.
-- **Deploy:** `git pull && docker compose up -d --build backend`
+### VPS — Single server (tehtek.com / 15.237.214.141)
 
-### ~~OLD Backend~~ — Retired
-- Was at: `https://api2.tehtek.com/api/api/v1/...` (double /api/)
-- Replaced by new backend. No longer running.
+All services run on one VPS via Docker. Caddy handles TLS + reverse proxy.
 
-#### Frontend (VPS 2)
-- **Staff app:** app.tehtek.com — now pointing to new backend
-- **Customer portal:** customer.tehtek.com (planned — Week 10)
-- **Docker image:** boulaz2002/tehtek-frontend:latest
+| Container | Name | Network | Exposes |
+|---|---|---|---|
+| Backend API | `tehtek_backend` | `backend_internal` | internal :8000 |
+| Database | `tehtek_db` | `backend_internal` | internal :5432 |
+| Staff frontend | `tehtek-frontend` | `backend_internal` | internal :3000 |
+| Shop | `tehtek_shop` | `backend_internal` + bridge | internal :3000 |
+| Reverse proxy | `tehtek_caddy` | `backend_internal` | 0.0.0.0:80+443 |
+
+**Caddyfile:** `backend/Caddyfile` in git → deployed to `/opt/backend/Caddyfile` → bind-mounted into `tehtek_caddy` as `/etc/caddy/Caddyfile:ro`.
+Contains all three virtual hosts. To edit: update locally, commit, deploy backend, then `docker exec tehtek_caddy caddy reload --config /etc/caddy/Caddyfile`.
+⚠️ The Caddyfiles at `/opt/tehtek-frontend/Caddyfile` and `/opt/tehtek-shop/Caddyfile` are reference copies only — NOT mounted, NOT active.
+
+**VPS Paths:**
+- Backend: `/opt/backend/` — real git repo, deployed via `git pull`
+- Frontend: `/opt/tehtek-frontend/` — deployed via rsync from `frontend/deploy.sh`
+- Shop: `/opt/tehtek-shop/` — deployed via rsync from `shop/deploy.sh`
+
+### URLs (all live ✅)
+- `https://api2.tehtek.com/api/v1/` — Backend API
+- `https://app.tehtek.com` — Staff ERP app
+- `https://tehtek.com` / `https://www.tehtek.com` — Shop
+- `https://customer.tehtek.com` — Customer portal (planned — Week 10)
 
 ### Local Dev Machine
 - OS: Ubuntu (benjamin@benjamin-Lenovo-Slim-7)
-- Frontend: ~/teh_frontend | Node: v20 (nvm)
-- New backend: local development folder
+- Repo: `/home/benjamin/erp_teh/` — backend + frontend + shop subdirs
+- SSH key: `~/LightsailDefaultKey-eu-west-3.pem`
 
 ---
 
@@ -347,7 +370,7 @@ user_id   # nullable FK → users.id
 
 | Document | File | Version | Status |
 |---|---|---|---|
-| Master Context | TEHTEK_ERP_MASTER.md | **2.4** | ✅ Current |
+| Master Context | TEHTEK_ERP_MASTER.md | **2.5** | ✅ Current |
 | Master Enums | TEHTEK_ENUMS.md | 1.4 | ✅ Current |
 | Business Rules | TEHTEK_RULES.md | **1.5** | ✅ Current |
 | Exception Matrix | TEHTEK_EXCEPTIONS.md | 1.3 | ✅ Current |
@@ -594,33 +617,49 @@ Has: auth, users, roles, referrals (old system) — serving current frontend
 
 ## 🚀 DEPLOY WORKFLOW
 
-### New backend update (VPS 1 — live)
+Each service has a `deploy.sh` in its local directory. Always run the local copy.
+
+### Backend (api2.tehtek.com)
 ```bash
-ssh tehtek@YOUR_VPS_IP
-cd /home/tehtek/tehtek_backend
-git pull
-docker compose up -d --build backend
-docker compose logs -f backend
+bash /home/benjamin/erp_teh/backend/deploy.sh
+# Does: git push origin main → SSH → git pull → docker compose up -d --build backend
+```
+⚠️ Backend uses git — `/opt/backend/` is a real git repo. VPS `.env` has real secrets; local has placeholders.
+
+### Frontend / Staff app (app.tehtek.com)
+```bash
+bash /home/benjamin/erp_teh/frontend/deploy.sh
+# Does: rsync source → VPS → docker build → docker rm -f → docker run
 ```
 
-### Frontend update (local → Docker Hub → VPS 2)
+### Shop (tehtek.com)
 ```bash
-# Build locally
-cd ~/teh_frontend
-docker build \
-  --build-arg NEXT_PUBLIC_API_URL=https://api2.tehtek.com/api/v1 \
-  -t boulaz2002/tehtek-frontend:latest .
-docker push boulaz2002/tehtek-frontend:latest
-
-# On VPS 2
-cd ~ && docker compose pull && docker compose up -d
+bash /home/benjamin/erp_teh/shop/deploy.sh
+# Does: rsync source → VPS → docker build → docker stop/rm → docker run
 ```
 
-### Useful VPS commands
+### Caddyfile change
 ```bash
-docker compose logs -f backend
-docker compose exec db psql -U tehtek_user -d tehtek_db
-docker compose restart backend
+# Edit backend/Caddyfile locally, then:
+bash /home/benjamin/erp_teh/backend/deploy.sh
+ssh -i ~/LightsailDefaultKey-eu-west-3.pem ubuntu@tehtek.com \
+  "docker exec tehtek_caddy caddy reload --config /etc/caddy/Caddyfile"
+```
+
+### Check logs
+```bash
+SSH="ssh -i ~/LightsailDefaultKey-eu-west-3.pem ubuntu@tehtek.com"
+$SSH "docker logs tehtek_backend   --tail=20"
+$SSH "docker logs tehtek-frontend  --tail=20"
+$SSH "docker logs tehtek_shop      --tail=20"
+$SSH "docker logs tehtek_caddy     --tail=20"   # check for 502s
+$SSH "docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
+```
+
+### DB access
+```bash
+ssh -i ~/LightsailDefaultKey-eu-west-3.pem ubuntu@tehtek.com \
+  "docker compose -f /opt/backend/docker-compose.yml exec db psql -U tehtek_user -d tehtek_db"
 ```
 
 ---
@@ -696,6 +735,6 @@ docker compose restart backend
 ```bash
 git add TEHTEK_ERP_MASTER.md TEHTEK_ENUMS.md TEHTEK_RULES.md \
         TEHTEK_EXCEPTIONS.md TEHTEK_PROHIBITED_ITEMS.md TEHTEK_ACCESS_MATRIX.md
-git commit -m "docs: v2.4 - app v1.2.0 - forced password change on first login (UR-011)"
+git commit -m "docs: v2.5 - infrastructure fixes - Caddyfile, deploy scripts, network"
 git push
 ```
