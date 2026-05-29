@@ -4,6 +4,7 @@ All routes are protected (require valid JWT).
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -107,9 +108,14 @@ def skip_br(
 
 # ── Invoice sub-resource ──────────────────────────────────────────────────────
 
+class InvoiceGeneratePayload(BaseModel):
+    percentage: float = 100.0
+
+
 @router.post("/{project_id}/invoice", status_code=201)
-def generate_invoice(project_id: int, db: Session = Depends(get_db)):
-    inv = ctrl.generate_invoice(db, project_id)
+def generate_invoice(project_id: int, body: Optional[InvoiceGeneratePayload] = None, db: Session = Depends(get_db)):
+    pct = body.percentage if body else 100.0
+    inv = ctrl.generate_invoice(db, project_id, pct)
     return {
         "id":             inv.id,
         "invoice_number": inv.invoice_number,

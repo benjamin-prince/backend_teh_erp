@@ -268,7 +268,7 @@ def skip_br(
 
 # ── Invoice ───────────────────────────────────────────────────────────────────
 
-def generate_invoice(db: Session, project_id: int):
+def generate_invoice(db: Session, project_id: int, percentage: float = 100.0):
     from app.modules.finance.models import Invoice, InvoiceStatus
     from app.modules.finance.controller import next_invoice_number
 
@@ -287,31 +287,41 @@ def generate_invoice(db: Session, project_id: int):
     if project.status not in allowed:
         raise HTTPException(400, f"Cannot invoice a project in status '{project.status.value}'")
 
+    factor = Decimal(str(min(max(percentage, 1), 100) / 100))
+
     import json
     items = [
         {
             "description": m.title or m.description or "",
             "quantity":    float(m.quantity),
             "unit_price":  float(m.unit_price),
-            "total":       float(m.line_total or m.total or 0),
+            "total":       float((m.line_total or m.total or 0) * factor),
         }
         for m in project.milestones
     ]
+
+    subtotal = (project.subtotal        * factor).quantize(Decimal("0.01"))
+    discount = (project.discount_amount * factor).quantize(Decimal("0.01"))
+    tax      = (project.tax_amount      * factor).quantize(Decimal("0.01"))
+    total    = (project.total           * factor).quantize(Decimal("0.01"))
+
+    partial_note = f"Facture partielle : {int(percentage)}% du montant total du projet." if percentage < 100 else None
+    notes = "\n".join(filter(None, [partial_note, project.notes])) or None
 
     inv = Invoice(
         invoice_number  = next_invoice_number(db),
         customer_id     = project.customer_id,
         ref_model       = "service_project",
         ref_id          = project.id,
-        subtotal        = project.subtotal,
-        discount_amount = project.discount_amount,
-        tax_amount      = project.tax_amount,
-        total           = project.total,
+        subtotal        = subtotal,
+        discount_amount = discount,
+        tax_amount      = tax,
+        total           = total,
         paid_amount     = Decimal("0"),
-        balance_due     = project.total,
+        balance_due     = total,
         status          = InvoiceStatus.unpaid,
         line_items_json = json.dumps(items),
-        notes           = project.notes,
+        notes           = notes,
     )
     db.add(inv)
     db.flush()
