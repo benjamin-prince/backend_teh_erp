@@ -137,6 +137,7 @@ class ServiceProjectCreate(BaseModel):
 
 class ServiceProjectUpdate(BaseModel):
     title:           Optional[str]                  = None
+    customer_id:     Optional[int]                  = None
     service_type_id: Optional[int]                  = None
     category:        Optional[ServiceCategory]       = None
     status:          Optional[ServiceProjectStatus]  = None
