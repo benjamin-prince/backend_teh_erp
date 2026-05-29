@@ -113,9 +113,10 @@ class InvoiceGeneratePayload(BaseModel):
 
 
 @router.post("/{project_id}/invoice", status_code=201)
-def generate_invoice(project_id: int, body: Optional[InvoiceGeneratePayload] = None, db: Session = Depends(get_db)):
+def generate_invoice(project_id: int, body: Optional[InvoiceGeneratePayload] = None,
+                     db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     pct = body.percentage if body else 100.0
-    inv = ctrl.generate_invoice(db, project_id, pct)
+    inv = ctrl.generate_invoice(db, project_id, pct, current_user.company_id, current_user.id)
     return {
         "id":             inv.id,
         "invoice_number": inv.invoice_number,

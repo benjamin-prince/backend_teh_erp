@@ -268,8 +268,9 @@ def skip_br(
 
 # ── Invoice ───────────────────────────────────────────────────────────────────
 
-def generate_invoice(db: Session, project_id: int, percentage: float = 100.0):
-    from app.modules.finance.models import Invoice, InvoiceStatus
+def generate_invoice(db: Session, project_id: int, percentage: float = 100.0,
+                     company_id: int = 1, created_by: int = None):
+    from app.modules.finance.models import Invoice
     from app.modules.companies.controller import next_sequence
     from app.core.enums import SequenceType
 
@@ -302,7 +303,9 @@ def generate_invoice(db: Session, project_id: int, percentage: float = 100.0):
     notes = "\n".join(filter(None, [partial_note, project.notes])) or None
 
     inv = Invoice(
+        company_id      = company_id,
         invoice_number  = next_sequence(db, SequenceType.invoice_number),
+        invoice_type    = "sale",
         customer_id     = project.customer_id,
         ref_model       = "service_project",
         ref_id          = project.id,
@@ -312,9 +315,9 @@ def generate_invoice(db: Session, project_id: int, percentage: float = 100.0):
         total           = total,
         paid_amount     = Decimal("0"),
         balance_due     = total,
-        status          = InvoiceStatus.unpaid,
         line_items_json = json.dumps(items),
         notes           = notes,
+        created_by      = created_by,
     )
     db.add(inv)
     db.flush()
