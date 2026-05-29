@@ -279,14 +279,6 @@ def generate_invoice(db: Session, project_id: int, percentage: float = 100.0):
         if inv:
             return inv
 
-    allowed = {
-        ServiceProjectStatus.br_received,
-        ServiceProjectStatus.completed,
-        ServiceProjectStatus.signed,
-    }
-    if project.status not in allowed:
-        raise HTTPException(400, f"Cannot invoice a project in status '{project.status.value}'")
-
     factor = Decimal(str(min(max(percentage, 1), 100) / 100))
 
     import json
