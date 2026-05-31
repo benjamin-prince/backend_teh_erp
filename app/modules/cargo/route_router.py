@@ -33,23 +33,27 @@ class RouteStopIn(BaseModel):
 
 
 class RouteCreate(BaseModel):
-    name:           str
-    code:           str
-    origin_country: str
-    dest_country:   str
-    transport_mode: str              # sea | air | land | local
-    notes:          Optional[str] = None
-    stops:          List[RouteStopIn] = []
+    name:               str
+    code:               str
+    origin_country:     str
+    dest_country:       str
+    transport_mode:     str
+    notes:              Optional[str] = None
+    origin_location_id: Optional[int] = None
+    dest_location_id:   Optional[int] = None
+    stops:              List[RouteStopIn] = []
 
 
 class RouteUpdate(BaseModel):
-    name:           Optional[str] = None
-    code:           Optional[str] = None
-    origin_country: Optional[str] = None
-    dest_country:   Optional[str] = None
-    transport_mode: Optional[str] = None
-    is_active:      Optional[bool] = None
-    notes:          Optional[str] = None
+    name:               Optional[str]  = None
+    code:               Optional[str]  = None
+    origin_country:     Optional[str]  = None
+    dest_country:       Optional[str]  = None
+    transport_mode:     Optional[str]  = None
+    is_active:          Optional[bool] = None
+    notes:              Optional[str]  = None
+    origin_location_id: Optional[int]  = None
+    dest_location_id:   Optional[int]  = None
 
 
 def _stop_out(stop: CargoRouteStop) -> Dict[str, Any]:
@@ -73,18 +77,28 @@ def _stop_out(stop: CargoRouteStop) -> Dict[str, Any]:
     }
 
 
+def _loc_embed(loc) -> Optional[Dict[str, Any]]:
+    if not loc:
+        return None
+    return {"id": loc.id, "name": loc.name, "city": loc.city, "country": loc.country, "type": loc.type}
+
+
 def _route_out(route: CargoRoute) -> Dict[str, Any]:
     return {
-        "id":             route.id,
-        "name":           route.name,
-        "code":           route.code,
-        "origin_country": route.origin_country,
-        "dest_country":   route.dest_country,
-        "transport_mode": route.transport_mode,
-        "is_active":      route.is_active,
-        "notes":          route.notes,
-        "created_at":     route.created_at.isoformat() if route.created_at else None,
-        "stops":          [_stop_out(s) for s in route.stops],
+        "id":                   route.id,
+        "name":                 route.name,
+        "code":                 route.code,
+        "origin_country":       route.origin_country,
+        "dest_country":         route.dest_country,
+        "transport_mode":       route.transport_mode,
+        "is_active":            route.is_active,
+        "notes":                route.notes,
+        "origin_location_id":   route.origin_location_id,
+        "origin_location":      _loc_embed(route.origin_location),
+        "dest_location_id":     route.dest_location_id,
+        "dest_location":        _loc_embed(route.dest_location),
+        "created_at":           route.created_at.isoformat() if route.created_at else None,
+        "stops":                [_stop_out(s) for s in route.stops],
     }
 
 
@@ -143,6 +157,8 @@ def create_route(
         dest_country=body.dest_country,
         transport_mode=body.transport_mode,
         notes=body.notes,
+        origin_location_id=body.origin_location_id,
+        dest_location_id=body.dest_location_id,
     )
     db.add(route)
     db.flush()  # get route.id

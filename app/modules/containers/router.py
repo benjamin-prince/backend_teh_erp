@@ -17,10 +17,12 @@ from app.modules.containers.models import (
     CONTAINER_TO_TRACKING_EVENT,
     REQUIRES_INVOICE,
     REQUIRES_TRACKING,
+    Broker,
     Container,
     ContainerShipment,
     ContainerStatus,
     ContainerType,
+    ShippingLine,
 )
 from app.modules.containers.service import generate_container_number
 from app.modules.users.models import User
@@ -131,6 +133,26 @@ def _recalc(db: Session, container: Container) -> None:
         container.customers_count = 0
 
 
+class ShippingLineEmbed(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    code: Optional[str]
+    phone: Optional[str]
+    email: Optional[str]
+    website: Optional[str]
+    tracking_url_template: Optional[str]
+
+
+class BrokerEmbed(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    company_name: Optional[str]
+    phone: Optional[str]
+    email: Optional[str]
+
+
 class ContainerCreate(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
@@ -138,11 +160,11 @@ class ContainerCreate(BaseModel):
     tracking_number: Optional[str] = None
     invoice_number: Optional[str] = None
 
-    owner_name: Optional[str] = None
+    shipping_line_id: Optional[int] = None
     owner_company: Optional[str] = None
-    owner_contact: Optional[str] = None
     tracking_link: Optional[str] = None
 
+    broker_id: Optional[int] = None
     broker_name: Optional[str] = None
     broker_company: Optional[str] = None
     broker_contact: Optional[str] = None
@@ -170,11 +192,11 @@ class ContainerUpdate(BaseModel):
     tracking_number: Optional[str] = None
     invoice_number: Optional[str] = None
 
-    owner_name: Optional[str] = None
+    shipping_line_id: Optional[int] = None
     owner_company: Optional[str] = None
-    owner_contact: Optional[str] = None
     tracking_link: Optional[str] = None
 
+    broker_id: Optional[int] = None
     broker_name: Optional[str] = None
     broker_company: Optional[str] = None
     broker_contact: Optional[str] = None
@@ -203,11 +225,13 @@ class ContainerOut(BaseModel):
     tracking_number: Optional[str]
     invoice_number: Optional[str]
 
-    owner_name: Optional[str]
+    shipping_line_id: Optional[int]
+    shipping_line: Optional[ShippingLineEmbed]
     owner_company: Optional[str]
-    owner_contact: Optional[str]
     tracking_link: Optional[str]
 
+    broker_id: Optional[int]
+    broker: Optional[BrokerEmbed]
     broker_name: Optional[str]
     broker_company: Optional[str]
     broker_contact: Optional[str]
@@ -338,6 +362,19 @@ def create_container(
                 payload.container_number = None
                 continue
 
+            # Resolve shipping line and broker for denormalization
+            sl = None
+            if payload.shipping_line_id:
+                sl = db.execute(
+                    select(ShippingLine).where(ShippingLine.id == payload.shipping_line_id)
+                ).scalar_one_or_none()
+
+            broker = None
+            if payload.broker_id:
+                broker = db.execute(
+                    select(Broker).where(Broker.id == payload.broker_id)
+                ).scalar_one_or_none()
+
             container = Container(
                 company_id=current_user.company_id,
                 branch_id=getattr(current_user, "branch_id", None),
@@ -345,13 +382,13 @@ def create_container(
                 container_number=number,
                 tracking_number=payload.tracking_number,
                 invoice_number=payload.invoice_number,
-                owner_name=payload.owner_name,
-                owner_company=payload.owner_company,
-                owner_contact=payload.owner_contact,
+                shipping_line_id=payload.shipping_line_id,
+                owner_company=sl.name if sl else payload.owner_company,
                 tracking_link=payload.tracking_link,
-                broker_name=payload.broker_name,
-                broker_company=payload.broker_company,
-                broker_contact=payload.broker_contact,
+                broker_id=payload.broker_id,
+                broker_name=broker.name if broker else payload.broker_name,
+                broker_company=broker.company_name if broker else payload.broker_company,
+                broker_contact=broker.phone if broker else payload.broker_contact,
                 broker_reference=payload.broker_reference,
                 type=payload.type,
                 status=payload.status,
@@ -398,6 +435,29 @@ def update_container(
     data = payload.model_dump(exclude_unset=True)
 
     new_status_value = data.pop("status", None)
+
+    # Re-denormalize if shipping_line_id or broker_id changes
+    if "shipping_line_id" in data:
+        sl_id = data["shipping_line_id"]
+        if sl_id:
+            sl = db.execute(select(ShippingLine).where(ShippingLine.id == sl_id)).scalar_one_or_none()
+            if sl:
+                data.setdefault("owner_company", sl.name)
+        else:
+            data.setdefault("owner_company", None)
+
+    if "broker_id" in data:
+        b_id = data["broker_id"]
+        if b_id:
+            b = db.execute(select(Broker).where(Broker.id == b_id)).scalar_one_or_none()
+            if b:
+                data.setdefault("broker_name",    b.name)
+                data.setdefault("broker_company",  b.company_name)
+                data.setdefault("broker_contact",  b.phone)
+        else:
+            data.setdefault("broker_name",    None)
+            data.setdefault("broker_company", None)
+            data.setdefault("broker_contact", None)
 
     for key, value in data.items():
         setattr(container, key, value)

@@ -39,7 +39,6 @@ class ContainerStatus(str, enum.Enum):
 
 # ── Cascade maps ───────────────────────────────────────────────────────────────
 
-# When container status changes, cascade this status to all loaded shipments
 CONTAINER_TO_SHIPMENT_STATUS: dict[ContainerStatus, str] = {
     ContainerStatus.preparing:  "confirmed",
     ContainerStatus.loading:    "warehoused",
@@ -49,7 +48,6 @@ CONTAINER_TO_SHIPMENT_STATUS: dict[ContainerStatus, str] = {
     ContainerStatus.closed:     "delivered",
 }
 
-# When container status changes, add this tracking event to all loaded shipments
 CONTAINER_TO_TRACKING_EVENT: dict[ContainerStatus, str] = {
     ContainerStatus.preparing:  "processed",
     ContainerStatus.loading:    "warehouse_received",
@@ -59,7 +57,6 @@ CONTAINER_TO_TRACKING_EVENT: dict[ContainerStatus, str] = {
     ContainerStatus.closed:     "delivered",
 }
 
-# Container must have tracking_number before moving to these statuses
 REQUIRES_TRACKING: set[ContainerStatus] = {
     ContainerStatus.loading,
     ContainerStatus.loaded,
@@ -68,12 +65,47 @@ REQUIRES_TRACKING: set[ContainerStatus] = {
     ContainerStatus.closed,
 }
 
-# Container must ALSO have invoice_number before moving to these statuses
 REQUIRES_INVOICE: set[ContainerStatus] = {
     ContainerStatus.in_transit,
     ContainerStatus.arrived,
     ContainerStatus.closed,
 }
+
+
+class ShippingLine(Base):
+    __tablename__ = "shipping_lines"
+
+    id         = Column(BigInteger, primary_key=True, index=True)
+    company_id = Column(BigInteger, ForeignKey("companies.id"), nullable=False, index=True)
+    created_by = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+
+    name                 = Column(String(255), nullable=False)
+    code                 = Column(String(64),  nullable=True)   # e.g. MSCU, MAEU, CMDU
+    phone                = Column(String(128), nullable=True)
+    email                = Column(String(255), nullable=True)
+    website              = Column(String(512), nullable=True)
+    tracking_url_template = Column(String(512), nullable=True)  # {bl} placeholder
+    notes                = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class Broker(Base):
+    __tablename__ = "brokers"
+
+    id         = Column(BigInteger, primary_key=True, index=True)
+    company_id = Column(BigInteger, ForeignKey("companies.id"), nullable=False, index=True)
+    created_by = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+
+    name         = Column(String(255), nullable=False)   # contact person / display name
+    company_name = Column(String(255), nullable=True)    # brokerage firm name
+    phone        = Column(String(128), nullable=True)
+    email        = Column(String(255), nullable=True)
+    notes        = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class Container(Base):
@@ -86,27 +118,22 @@ class Container(Base):
 
     # ── Three distinct identifiers ────────────────────────────────────────────
     container_number = Column(String(64),  nullable=False, unique=True, index=True)
-    # ^ Internal sequential ref, auto-generated: CONT-2026-0001, AIR-2026-0001, GRP-2026-0001
-
     tracking_number  = Column(String(128), nullable=True, index=True)
-    # ^ Carrier BL / AWB number entered manually — required for loading+
-
     invoice_number   = Column(String(128), nullable=True, index=True)
-    # ^ Commercial invoice number — required for in_transit+
 
-    # ── Owner ─────────────────────────────────────────────────────────────────
-    owner_name    = Column(String(255), nullable=True)
-    owner_company = Column(String(255), nullable=True)
-    owner_contact = Column(String(128), nullable=True)
+    # ── Shipping line (owner) — FK + denormalized name ────────────────────────
+    shipping_line_id = Column(BigInteger, ForeignKey("shipping_lines.id"), nullable=True)
+    owner_company    = Column(String(255), nullable=True)  # denormalized for display
 
     # ── Tracking link ─────────────────────────────────────────────────────────
-    tracking_link = Column(String(512), nullable=True)  # public carrier URL
+    tracking_link = Column(String(512), nullable=True)
 
-    # ── Broker / freight forwarder ────────────────────────────────────────────
-    broker_name      = Column(String(255), nullable=True)
-    broker_company   = Column(String(255), nullable=True)
-    broker_contact   = Column(String(128), nullable=True)
-    broker_reference = Column(String(128), nullable=True)  # broker's own file number
+    # ── Broker — FK + denormalized fields ─────────────────────────────────────
+    broker_id        = Column(BigInteger, ForeignKey("brokers.id"), nullable=True)
+    broker_name      = Column(String(255), nullable=True)   # denormalized
+    broker_company   = Column(String(255), nullable=True)   # denormalized
+    broker_contact   = Column(String(128), nullable=True)   # phone, denormalized
+    broker_reference = Column(String(128), nullable=True)   # broker's own file number
 
     # ── Core ──────────────────────────────────────────────────────────────────
     type   = Column(Enum(ContainerType),   nullable=False, default=ContainerType.sea)
@@ -122,8 +149,8 @@ class Container(Base):
     total_spent      = Column(Numeric(18, 2), nullable=False, default=0)
     total_earned     = Column(Numeric(18, 2), nullable=False, default=0)
     currency         = Column(String(8),      nullable=False, default="XAF")
-    packages_count   = Column(Integer,        nullable=False, default=0)  # denormalized
-    customers_count  = Column(Integer,        nullable=False, default=0)  # denormalized
+    packages_count   = Column(Integer,        nullable=False, default=0)
+    customers_count  = Column(Integer,        nullable=False, default=0)
 
     notes     = Column(Text, nullable=True)
     closed_at = Column(DateTime(timezone=True), nullable=True)
@@ -135,6 +162,8 @@ class Container(Base):
         nullable=False,
     )
 
+    shipping_line  = relationship("ShippingLine", foreign_keys=[shipping_line_id])
+    broker         = relationship("Broker",        foreign_keys=[broker_id])
     shipment_links = relationship(
         "ContainerShipment",
         back_populates="container",

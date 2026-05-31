@@ -74,16 +74,25 @@ class ShipmentCreate(BaseModel):
     delivery_location: Optional[str] = None  # which TEHTEK location (when warehouse_pickup / agency_pickup)
 
 class ShipmentUpdate(BaseModel):
-    weight_kg: Optional[float] = None
-    length_cm: Optional[float] = None
-    width_cm: Optional[float] = None
-    height_cm: Optional[float] = None
-    insurance_status: Optional[str] = None
-    insured_value: Optional[float] = None
-    declared_value: Optional[float] = None
-    customs_value: Optional[float] = None
-    content_description: Optional[str] = None
-    notes: Optional[str] = None
+    sender_name:  Optional[str] = None
+    sender_phone: Optional[str] = None
+    receiver_name:    Optional[str] = None
+    receiver_phone:   Optional[str] = None
+    receiver_country: Optional[str] = None
+    weight_kg:   Optional[float] = None
+    weight_unit: Optional[str]   = None
+    length_cm:   Optional[float] = None
+    width_cm:    Optional[float] = None
+    height_cm:   Optional[float] = None
+    dim_unit:    Optional[str]   = None
+    insurance_status:       Optional[str]   = None
+    insured_value:          Optional[float] = None
+    insured_value_currency: Optional[str]   = None
+    declared_value:          Optional[float] = None
+    declared_value_currency: Optional[str]  = None
+    customs_value:       Optional[float] = None
+    content_description: Optional[str]   = None
+    notes:               Optional[str]   = None
     pickup_type:       Optional[str] = None
     pickup_location:   Optional[str] = None
     delivery_type:     Optional[str] = None
@@ -180,7 +189,11 @@ def get_shipment(
     s = db.query(Shipment).filter_by(id=shipment_id, deleted_at=None).first()
     if not s:
         raise HTTPException(404, "Shipment not found")
-    return s
+    from app.modules.customers.models import Customer
+    d = {c.name: getattr(s, c.name) for c in s.__table__.columns}
+    cust = db.query(Customer).filter_by(id=s.customer_id).first()
+    d["customer"] = {"id": cust.id, "full_name": cust.full_name, "phone": cust.phone} if cust else None
+    return d
 
 @router.patch("/shipments/{shipment_id}")
 def update_shipment(
@@ -192,17 +205,16 @@ def update_shipment(
     if not s:
         raise HTTPException(404, "Shipment not found")
 
-    # SR-003: block release/delivery if invoice unpaid
-    new_status = body.status if body.status else None
-    if new_status and ShipmentStatus(new_status) in _RELEASE_STATUSES:
-        _assert_invoice_paid(shipment_id, db)
-
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(s, k, v)
     s.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(s)
-    return s
+    from app.modules.customers.models import Customer
+    d = {c.name: getattr(s, c.name) for c in s.__table__.columns}
+    cust = db.query(Customer).filter_by(id=s.customer_id).first()
+    d["customer"] = {"id": cust.id, "full_name": cust.full_name, "phone": cust.phone} if cust else None
+    return d
 
 @router.post("/shipments/{shipment_id}/confirm")
 def confirm_shipment(
@@ -407,6 +419,7 @@ class ShipmentItemIn(BaseModel):
     quantity:    float = 1
     unit:        str   = "pcs"
     weight_kg:   Optional[float] = None
+    weight_unit: Optional[str]   = None   # "kg" | "lbs" — original entry unit
     notes:       Optional[str]   = None
     sort_order:  int              = 0
 
@@ -418,6 +431,16 @@ class ShipmentItemIn(BaseModel):
 
     # Packing type
     packing_type_id: Optional[int] = None
+
+    # Dimensions (stored in cm, original unit preserved)
+    length_cm:   Optional[float] = None
+    width_cm:    Optional[float] = None
+    height_cm:   Optional[float] = None
+    dim_unit:    Optional[str]   = None   # "cm" | "in"
+
+    # Pricing
+    unit_price:     Optional[float] = None
+    price_currency: Optional[str]   = None
 
     # Car fields
     is_car:       bool            = False
@@ -459,6 +482,7 @@ class ShipmentItemOut(BaseModel):
     quantity:    float
     unit:        str
     weight_kg:   Optional[float]
+    weight_unit: Optional[str]
     notes:       Optional[str]
     sort_order:  int
 
@@ -467,6 +491,13 @@ class ShipmentItemOut(BaseModel):
     receiver_name:   Optional[str]
     receiver_phone:  Optional[str]
     packing_type_id: Optional[int]
+
+    length_cm:      Optional[float]
+    width_cm:       Optional[float]
+    height_cm:      Optional[float]
+    dim_unit:       Optional[str]
+    unit_price:     Optional[float]
+    price_currency: Optional[str]
 
     is_car:       bool
     vin:          Optional[str]

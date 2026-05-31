@@ -120,8 +120,17 @@ def generate_invoice(project_id: int, body: Optional[InvoiceGeneratePayload] = N
     return {
         "id":             inv.id,
         "invoice_number": inv.invoice_number,
+        "customer_id":    inv.customer_id,
+        "subtotal":       float(inv.subtotal),
+        "discount_amount":float(inv.discount_amount),
+        "tax_amount":     float(inv.tax_amount),
         "total":          float(inv.total),
+        "paid_amount":    float(inv.paid_amount),
+        "balance_due":    float(inv.balance_due),
         "status":         inv.status,
+        "line_items_json":inv.line_items_json,
+        "notes":          inv.notes,
+        "created_at":     inv.created_at.isoformat(),
     }
 
 

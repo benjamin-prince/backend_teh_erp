@@ -36,6 +36,11 @@ class CargoRoute(Base):
     transport_mode = Column(String(20),  nullable=False)   # sea / air / land / local
     is_active      = Column(Boolean, nullable=False, default=True)
     notes          = Column(Text, nullable=True)
+
+    # Direct departure / arrival locations (replaces the multi-stop editor)
+    origin_location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
+    dest_location_id   = Column(Integer, ForeignKey("locations.id"), nullable=True)
+
     created_at     = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at     = Column(DateTime, nullable=False, default=datetime.utcnow,
                             onupdate=datetime.utcnow)
@@ -47,6 +52,9 @@ class CargoRoute(Base):
         cascade="all, delete-orphan",
         lazy="joined",
     )
+
+    origin_location = relationship("Location", foreign_keys=[origin_location_id], lazy="joined")
+    dest_location   = relationship("Location", foreign_keys=[dest_location_id],   lazy="joined")
 
     # Shipments that use this route (informational — no cascade delete)
     shipments = relationship("Shipment", back_populates="cargo_route", lazy="dynamic")

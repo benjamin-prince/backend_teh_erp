@@ -40,20 +40,24 @@ class Shipment(Base):
 
     # Dimensions (SR-005)
     weight_kg          = Column(Numeric(10, 3), nullable=True)
+    weight_unit        = Column(String(10), nullable=True)    # "kg" | "lbs"
     length_cm          = Column(Numeric(10, 2), nullable=True)
     width_cm           = Column(Numeric(10, 2), nullable=True)
     height_cm          = Column(Numeric(10, 2), nullable=True)
+    dim_unit           = Column(String(10), nullable=True)    # "cm" | "in"
 
     # Customs (SR-007)
-    declared_value     = Column(Numeric(14, 2), nullable=True)
+    declared_value          = Column(Numeric(14, 2), nullable=True)
+    declared_value_currency = Column(String(10), nullable=True)
     customs_value      = Column(Numeric(14, 2), nullable=True)
     customs_currency   = Column(String(10), default="XAF")
     incoterm           = Column(String(10), default=Incoterm.dap)
     content_description = Column(Text, nullable=True)
 
     # Insurance (SR-010)
-    insurance_status   = Column(String(30), default=InsuranceStatus.not_requested)
-    insured_value      = Column(Numeric(14, 2), nullable=True)
+    insurance_status        = Column(String(30), default=InsuranceStatus.not_requested)
+    insured_value           = Column(Numeric(14, 2), nullable=True)
+    insured_value_currency  = Column(String(10), nullable=True)
 
     # Declarations (SR-008, SR-009)
     declaration_accepted   = Column(Boolean, default=False)
@@ -205,6 +209,26 @@ class ShipmentItem(Base):
     no_lien      = Column(Boolean,     nullable=True)  # title is clean / no lender
     is_drivable  = Column(Boolean,     nullable=True)
     options_text = Column(Text,        nullable=True)  # free-form options (sunroof, leather…)
+
+    # Per-item tracking & delivery (each item can have its own destination/recipient)
+    tracking_number  = Column(String(128), nullable=True, index=True)
+    destination      = Column(String(255), nullable=True)
+    receiver_name    = Column(String(255), nullable=True)
+    receiver_phone   = Column(String(128), nullable=True)
+
+    # Packing type FK (pallet, barrel, carton, wardrobe…)
+    packing_type_id  = Column(Integer, ForeignKey("packing_types.id"), nullable=True)
+
+    # Per-item dimensions (custom packing mode) — stored in cm, original unit preserved
+    length_cm        = Column(Numeric(10, 2), nullable=True)
+    width_cm         = Column(Numeric(10, 2), nullable=True)
+    height_cm        = Column(Numeric(10, 2), nullable=True)
+    dim_unit         = Column(String(10), nullable=True)    # "cm" | "in"
+    weight_unit      = Column(String(10), nullable=True)    # "kg" | "lbs"
+
+    # Pricing per item
+    unit_price       = Column(Numeric(14, 2), nullable=True)
+    price_currency   = Column(String(10), nullable=True)
 
     # Up-to-5 photos stored as JSONB list of {url, public_id, width, height}
     photos      = Column(JSONB, nullable=False, server_default="[]")
