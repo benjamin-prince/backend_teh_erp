@@ -36,6 +36,8 @@ class Shipment(Base):
     receiver_name      = Column(String(200), nullable=True)
     receiver_phone     = Column(String(30), nullable=True)
     receiver_address   = Column(Text, nullable=True)
+    receiver_city      = Column(String(100), nullable=True)
+    receiver_quartier  = Column(String(100), nullable=True)
     receiver_country   = Column(String(100), nullable=True)
 
     # Dimensions (SR-005)

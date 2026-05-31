@@ -55,10 +55,12 @@ class ShipmentCreate(BaseModel):
     shipment_type: str
     route: str = ""               # deprecated — stored as route_legacy; use cargo_route_id
     cargo_route_id: Optional[int] = None
-    receiver_name: Optional[str] = None
-    receiver_phone: Optional[str] = None
-    receiver_address: Optional[str] = None
-    receiver_country: Optional[str] = None
+    receiver_name:     Optional[str] = None
+    receiver_phone:    Optional[str] = None
+    receiver_address:  Optional[str] = None
+    receiver_city:     Optional[str] = None
+    receiver_quartier: Optional[str] = None
+    receiver_country:  Optional[str] = None
     content_description: Optional[str] = None
     declared_value: Optional[float] = None
     weight_kg: Optional[float] = None
@@ -76,9 +78,12 @@ class ShipmentCreate(BaseModel):
 class ShipmentUpdate(BaseModel):
     sender_name:  Optional[str] = None
     sender_phone: Optional[str] = None
-    receiver_name:    Optional[str] = None
-    receiver_phone:   Optional[str] = None
-    receiver_country: Optional[str] = None
+    receiver_name:     Optional[str] = None
+    receiver_phone:    Optional[str] = None
+    receiver_address:  Optional[str] = None
+    receiver_city:     Optional[str] = None
+    receiver_quartier: Optional[str] = None
+    receiver_country:  Optional[str] = None
     weight_kg:   Optional[float] = None
     weight_unit: Optional[str]   = None
     length_cm:   Optional[float] = None
