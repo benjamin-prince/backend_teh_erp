@@ -213,10 +213,12 @@ class ShipmentItem(Base):
     options_text = Column(Text,        nullable=True)  # free-form options (sunroof, leather…)
 
     # Per-item tracking & delivery (each item can have its own destination/recipient)
-    tracking_number  = Column(String(128), nullable=True, index=True)
-    destination      = Column(String(255), nullable=True)
-    receiver_name    = Column(String(255), nullable=True)
-    receiver_phone   = Column(String(128), nullable=True)
+    tracking_number   = Column(String(128), nullable=True, index=True)
+    destination       = Column(String(255), nullable=True)
+    receiver_name     = Column(String(255), nullable=True)
+    receiver_phone    = Column(String(128), nullable=True)
+    receiver_quartier = Column(String(128), nullable=True)
+    receiver_city     = Column(String(128), nullable=True)
 
     # Packing type FK (pallet, barrel, carton, wardrobe…)
     packing_type_id  = Column(Integer, ForeignKey("packing_types.id"), nullable=True)

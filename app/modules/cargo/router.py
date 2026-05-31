@@ -429,10 +429,12 @@ class ShipmentItemIn(BaseModel):
     sort_order:  int              = 0
 
     # Per-item delivery
-    tracking_number: Optional[str] = None
-    destination:     Optional[str] = None
-    receiver_name:   Optional[str] = None
-    receiver_phone:  Optional[str] = None
+    tracking_number:   Optional[str] = None
+    destination:       Optional[str] = None
+    receiver_name:     Optional[str] = None
+    receiver_phone:    Optional[str] = None
+    receiver_quartier: Optional[str] = None
+    receiver_city:     Optional[str] = None
 
     # Packing type
     packing_type_id: Optional[int] = None
@@ -491,11 +493,13 @@ class ShipmentItemOut(BaseModel):
     notes:       Optional[str]
     sort_order:  int
 
-    tracking_number: Optional[str]
-    destination:     Optional[str]
-    receiver_name:   Optional[str]
-    receiver_phone:  Optional[str]
-    packing_type_id: Optional[int]
+    tracking_number:   Optional[str]
+    destination:       Optional[str]
+    receiver_name:     Optional[str]
+    receiver_phone:    Optional[str]
+    receiver_quartier: Optional[str]
+    receiver_city:     Optional[str]
+    packing_type_id:   Optional[int]
 
     length_cm:      Optional[float]
     width_cm:       Optional[float]
