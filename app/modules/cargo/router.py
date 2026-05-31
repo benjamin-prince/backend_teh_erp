@@ -410,6 +410,15 @@ class ShipmentItemIn(BaseModel):
     notes:       Optional[str]   = None
     sort_order:  int              = 0
 
+    # Per-item delivery
+    tracking_number: Optional[str] = None
+    destination:     Optional[str] = None
+    receiver_name:   Optional[str] = None
+    receiver_phone:  Optional[str] = None
+
+    # Packing type
+    packing_type_id: Optional[int] = None
+
     # Car fields
     is_car:       bool            = False
     vin:          Optional[str]   = None
@@ -453,6 +462,12 @@ class ShipmentItemOut(BaseModel):
     notes:       Optional[str]
     sort_order:  int
 
+    tracking_number: Optional[str]
+    destination:     Optional[str]
+    receiver_name:   Optional[str]
+    receiver_phone:  Optional[str]
+    packing_type_id: Optional[int]
+
     is_car:       bool
     vin:          Optional[str]
     make:         Optional[str]
@@ -479,6 +494,10 @@ def list_shipment_items(
     from app.modules.cargo.models import ShipmentItem
     return db.query(ShipmentItem).filter_by(shipment_id=shipment_id).order_by(ShipmentItem.sort_order).all()
 
+def _item_tracking(shipment: Shipment, db: Session) -> str:
+    return next_sequence(db, SequenceType.tracking_number, shipment.route_legacy or "")
+
+
 @router.post("/shipments/{shipment_id}/items", response_model=ShipmentItemOut, status_code=201)
 def create_shipment_item(
     shipment_id: int,
@@ -486,8 +505,14 @@ def create_shipment_item(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    shipment = db.query(Shipment).filter_by(id=shipment_id).first()
+    if not shipment:
+        raise HTTPException(404, "Shipment not found")
     from app.modules.cargo.models import ShipmentItem
-    item = ShipmentItem(shipment_id=shipment_id, **body.model_dump())
+    data = body.model_dump()
+    if not data.get("tracking_number"):
+        data["tracking_number"] = _item_tracking(shipment, db)
+    item = ShipmentItem(shipment_id=shipment_id, **data)
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -500,9 +525,17 @@ def replace_shipment_items(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    shipment = db.query(Shipment).filter_by(id=shipment_id).first()
+    if not shipment:
+        raise HTTPException(404, "Shipment not found")
     from app.modules.cargo.models import ShipmentItem
     db.query(ShipmentItem).filter_by(shipment_id=shipment_id).delete()
-    items = [ShipmentItem(shipment_id=shipment_id, **it.model_dump()) for it in body]
+    items = []
+    for it in body:
+        data = it.model_dump()
+        if not data.get("tracking_number"):
+            data["tracking_number"] = _item_tracking(shipment, db)
+        items.append(ShipmentItem(shipment_id=shipment_id, **data))
     db.add_all(items)
     db.commit()
     return db.query(ShipmentItem).filter_by(shipment_id=shipment_id).order_by(ShipmentItem.sort_order).all()

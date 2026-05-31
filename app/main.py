@@ -75,11 +75,13 @@ from app.modules.commissions.router import router as commissions_router
 from app.modules.finance.router import router as finance_router
 from app.modules.insurance.router import router as insurance_router
 from app.modules.containers.router import router as containers_router  # ← NEW
+from app.modules.containers.parties_router import router as container_parties_router
 from app.modules.service_projects.router import router as service_projects_router
 from app.modules.service_projects.service_types_router import router as service_types_router
 from app.modules.finance.extended_router import router as finance_extended_router
 from app.modules.personal.router import router as personal_router  # ← NEW
 from app.modules.cargo.route_router import router as cargo_routes_router
+from app.modules.cargo.packing_router import router as packing_router, PackingType
 from app.modules.currencies.router import router as currencies_router
 from app.modules.currencies.models import Currency  # noqa: F401
 from app.modules.stock.shop_router import router as shop_router
@@ -192,6 +194,7 @@ app.include_router(companies_router)
 app.include_router(customers_router)
 app.include_router(cargo_router)
 app.include_router(cargo_routes_router)
+app.include_router(packing_router)
 app.include_router(stock_router)
 app.include_router(orders_router)
 app.include_router(infra_router)
@@ -200,6 +203,7 @@ app.include_router(finance_extended_router)
 app.include_router(finance_router)
 app.include_router(insurance_router)
 app.include_router(containers_router)  # ← ADD THIS
+app.include_router(container_parties_router)
 app.include_router(service_projects_router)
 app.include_router(service_types_router)
 app.include_router(personal_router)
