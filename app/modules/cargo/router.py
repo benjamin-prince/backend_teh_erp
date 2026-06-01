@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_permission
+from app.core.security import verify_password
 from app.modules.cargo.models import Shipment, TrackingEvent, Bag, CarrierAssignment, PickupRequest
 from app.modules.finance.models import Invoice
 from app.modules.companies.controller import next_sequence
@@ -784,3 +785,28 @@ def cloudinary_signature(
         cloud_name=settings.CLOUDINARY_CLOUD_NAME,
         folder=folder,
     )
+
+
+class DeleteShipmentRequest(BaseModel):
+    password: str
+
+@router.delete("/shipments/{shipment_id}", status_code=204)
+def delete_shipment(
+    shipment_id: int,
+    body: DeleteShipmentRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Permanently soft-delete a shipment after password confirmation."""
+    if not verify_password(body.password, current_user.hashed_password):
+        raise HTTPException(status_code=403, detail="Incorrect password")
+    s = db.query(Shipment).filter_by(id=shipment_id, deleted_at=None).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    now = datetime.utcnow()
+    s.deleted_at = now
+    # Also soft-delete related invoice
+    inv = db.query(Invoice).filter_by(ref_model="shipment", ref_id=shipment_id, deleted_at=None).first()
+    if inv:
+        inv.deleted_at = now
+    db.commit()
