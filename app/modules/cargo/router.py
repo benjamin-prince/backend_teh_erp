@@ -580,6 +580,150 @@ def replace_shipment_items(
     db.commit()
     return db.query(ShipmentItem).filter_by(shipment_id=shipment_id).order_by(ShipmentItem.sort_order).all()
 
+@router.get("/shipments/{shipment_id}/invoice")
+def get_shipment_invoice(
+    shipment_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("cargo:read")),
+):
+    """Return the latest non-cancelled invoice for this shipment, or 404."""
+    from app.modules.finance.models import Invoice
+    inv = (
+        db.query(Invoice)
+        .filter_by(ref_model="shipment", ref_id=shipment_id, deleted_at=None)
+        .filter(Invoice.status != "cancelled")
+        .order_by(Invoice.id.desc())
+        .first()
+    )
+    if not inv:
+        raise HTTPException(404, "No invoice for this shipment")
+    from app.modules.finance.models import Payment
+    payments = db.query(Payment).filter_by(invoice_id=inv.id).all()
+    d = {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+    d["payments"] = [
+        {c.name: getattr(p, c.name) for c in p.__table__.columns}
+        for p in payments
+    ]
+    return d
+
+
+class ShipmentInvoiceCreate(BaseModel):
+    subtotal:        float
+    tax_amount:      float = 0
+    discount_amount: float = 0
+    currency:        str   = "XAF"
+    notes:           Optional[str] = None
+    line_items_json: Optional[str] = None
+
+
+@router.post("/shipments/{shipment_id}/invoice", status_code=201)
+def create_shipment_invoice(
+    shipment_id: int,
+    body: ShipmentInvoiceCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("cargo:update")),
+):
+    """Create or return existing invoice for this shipment."""
+    from app.modules.finance.models import Invoice
+    from app.core.enums import InvoiceType
+    # If one already exists, return it
+    existing = (
+        db.query(Invoice)
+        .filter_by(ref_model="shipment", ref_id=shipment_id, deleted_at=None)
+        .filter(Invoice.status != "cancelled")
+        .order_by(Invoice.id.desc())
+        .first()
+    )
+    if existing:
+        return {c.name: getattr(existing, c.name) for c in existing.__table__.columns}
+    shipment = db.query(Shipment).filter_by(id=shipment_id).first()
+    if not shipment:
+        raise HTTPException(404, "Shipment not found")
+    from app.modules.companies.controller import next_sequence
+    from app.core.enums import SequenceType
+    number = next_sequence(db, SequenceType.invoice_number)
+    total = body.subtotal + body.tax_amount - body.discount_amount
+    inv = Invoice(
+        company_id=current_user.company_id,
+        branch_id=current_user.branch_id,
+        invoice_number=number,
+        invoice_type=InvoiceType.shipment,
+        customer_id=shipment.customer_id,
+        ref_model="shipment",
+        ref_id=shipment_id,
+        subtotal=body.subtotal,
+        tax_amount=body.tax_amount,
+        discount_amount=body.discount_amount,
+        total=total,
+        balance_due=total,
+        currency=body.currency,
+        notes=body.notes,
+        line_items_json=body.line_items_json,
+        created_by=current_user.id,
+    )
+    db.add(inv)
+    db.commit()
+    db.refresh(inv)
+    return {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+
+
+class ShipmentPaymentBody(BaseModel):
+    invoice_id:     int
+    amount:         float
+    payment_method: str   = "cash"
+    currency:       str   = "XAF"
+    reference:      Optional[str] = None
+    notes:          Optional[str] = None
+
+
+@router.post("/shipments/{shipment_id}/payment", status_code=201)
+def record_shipment_payment(
+    shipment_id: int,
+    body: ShipmentPaymentBody,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("cargo:update")),
+):
+    """Record a payment against this shipment's invoice."""
+    from app.modules.finance.models import Invoice, Payment
+    from app.core.enums import PaymentStatus
+    inv = db.query(Invoice).filter_by(id=body.invoice_id, deleted_at=None).first()
+    if not inv:
+        raise HTTPException(404, "Invoice not found")
+    from app.modules.companies.controller import next_sequence
+    from app.core.enums import SequenceType
+    from datetime import datetime as _dt
+    receipt_number = next_sequence(db, SequenceType.receipt_number)
+    payment = Payment(
+        company_id=current_user.company_id,
+        invoice_id=body.invoice_id,
+        customer_id=inv.customer_id,
+        receipt_number=receipt_number,
+        payment_method=body.payment_method,
+        amount=body.amount,
+        currency=body.currency,
+        reference=body.reference,
+        notes=body.notes,
+        status=PaymentStatus.confirmed,
+        created_by=current_user.id,
+        confirmed_by=current_user.id,
+        confirmed_at=_dt.utcnow(),
+    )
+    db.add(payment)
+    inv.paid_amount = float(inv.paid_amount or 0) + body.amount
+    inv.balance_due = float(inv.total) - float(inv.paid_amount)
+    if inv.balance_due <= 0:
+        inv.status = "paid"
+        inv.paid_at = _dt.utcnow()
+    elif float(inv.paid_amount) > 0:
+        inv.status = "partial"
+    inv.updated_at = _dt.utcnow()
+    db.commit()
+    db.refresh(payment)
+    d = {c.name: getattr(payment, c.name) for c in payment.__table__.columns}
+    d["invoice"] = {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+    return d
+
+
 @router.delete("/shipments/{shipment_id}/items/{item_id}", status_code=204)
 def delete_shipment_item(
     shipment_id: int,
