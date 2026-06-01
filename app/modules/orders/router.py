@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_permission
+from app.core.security import verify_password
 from app.modules.orders.models import Order, OrderItem, Exception_
 from app.modules.companies.controller import next_sequence
 from app.core.enums import OrderStatus, SequenceType, ExceptionStatus
@@ -211,3 +212,25 @@ def skip_br(
     db.commit()
     db.refresh(o)
     return o
+
+
+class DeleteOrderBody(BaseModel):
+    password: str
+
+@router.delete("/orders/{order_id}", status_code=204)
+def delete_order(
+    order_id: int,
+    body: DeleteOrderBody,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Delete a cancelled order after password confirmation."""
+    if not verify_password(body.password, current_user.hashed_password):
+        raise HTTPException(status_code=403, detail="Incorrect password")
+    order = db.query(Order).filter_by(id=order_id, company_id=current_user.company_id).first()
+    if not order:
+        raise HTTPException(404, "Order not found")
+    if order.status != OrderStatus.cancelled:
+        raise HTTPException(400, "Only cancelled orders can be deleted")
+    db.delete(order)
+    db.commit()
