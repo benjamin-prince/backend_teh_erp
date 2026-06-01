@@ -4,12 +4,13 @@ from typing import Optional
 import cloudinary
 import cloudinary.uploader
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_permission
+from app.core.security import verify_password
 from app.modules.stock.models import Product, StockItem, StockMovement, Reservation
 from app.modules.stock.schemas import (
     ProductCreate,
@@ -432,3 +433,27 @@ def upload_product_image(
     )
 
     return {"url": result["secure_url"]}
+
+
+class DeleteProductBody(BaseModel):
+    password: str
+
+@router.delete("/products/{product_id}", status_code=204)
+def delete_product(
+    product_id: int,
+    body: DeleteProductBody,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("stock:receive")),
+):
+    """Soft-delete a product after password confirmation."""
+    if not verify_password(body.password, current_user.hashed_password):
+        raise HTTPException(status_code=403, detail="Incorrect password")
+    p = db.query(Product).filter(
+        Product.id == product_id,
+        Product.company_id == current_user.company_id,
+        Product.deleted_at.is_(None),
+    ).first()
+    if not p:
+        raise HTTPException(404, "Product not found")
+    p.deleted_at = datetime.utcnow()
+    db.commit()

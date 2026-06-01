@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.security import verify_password
 from app.modules.cargo.models import Shipment, TrackingEvent
 from app.modules.containers.models import (
     CONTAINER_TO_SHIPMENT_STATUS,
@@ -480,12 +481,18 @@ def update_container(
     return container
 
 
+class DeletePasswordBody(BaseModel):
+    password: str
+
 @router.delete("/{cid}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_container(
     cid: int,
+    body: DeletePasswordBody,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if not verify_password(body.password, current_user.hashed_password):
+        raise HTTPException(status_code=403, detail="Incorrect password")
     container = _get(db, cid, current_user.company_id)
     db.delete(container)
     db.commit()
