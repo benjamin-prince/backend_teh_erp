@@ -39,7 +39,7 @@ class Order(Base):
     updated_at    = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at    = Column(DateTime, nullable=True)
 
-    items = relationship("OrderItem", back_populates="order", lazy="select")
+    items = relationship("OrderItem", back_populates="order", lazy="select", cascade="all, delete-orphan")
     __table_args__ = (Index("ix_order_company_status", "company_id", "status"),)
 
 
