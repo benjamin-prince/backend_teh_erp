@@ -113,6 +113,34 @@ def get_invoice(
     return inv
 
 
+class InvoiceUpdate(BaseModel):
+    subtotal:         Optional[float] = None
+    total:            Optional[float] = None
+    balance_due:      Optional[float] = None
+    currency:         Optional[str]   = None
+    line_items_json:  Optional[str]   = None
+    notes:            Optional[str]   = None
+
+@router.patch("/invoices/{invoice_id}")
+def update_invoice(
+    invoice_id: int,
+    body: InvoiceUpdate,
+    db: Session = Depends(get_db),
+    _=Depends(require_permission("finance:invoices")),
+):
+    inv = db.query(Invoice).filter_by(id=invoice_id, deleted_at=None).first()
+    if not inv:
+        raise HTTPException(404, "Invoice not found")
+    if inv.status == "cancelled":
+        raise HTTPException(400, "Cannot update a cancelled invoice")
+    for k, v in body.model_dump(exclude_none=True).items():
+        setattr(inv, k, v)
+    from datetime import datetime as _dt
+    inv.updated_at = _dt.utcnow()
+    db.commit()
+    db.refresh(inv)
+    return {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+
 @router.post("/invoices/{invoice_id}/cancel")
 def cancel_invoice(
     invoice_id: int,
