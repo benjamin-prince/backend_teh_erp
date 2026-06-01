@@ -268,7 +268,8 @@ def skip_br(
 
 # ── Invoice ───────────────────────────────────────────────────────────────────
 
-def generate_invoice(db: Session, project_id: int, percentage: float = 100.0,
+def generate_invoice(db: Session, project_id: int,
+                     percentage: float = None, amount: float = None,
                      company_id: int = 1, created_by: int = None):
     from app.modules.finance.models import Invoice
     from app.modules.companies.controller import next_sequence
@@ -276,20 +277,42 @@ def generate_invoice(db: Session, project_id: int, percentage: float = 100.0,
 
     project = get_project(db, project_id)
 
+    # If existing invoice has no payment yet, return it (avoid duplicate open invoices)
     if project.invoice_id:
         inv = db.query(Invoice).filter_by(id=project.invoice_id).first()
-        if inv:
+        if inv and inv.status != "cancelled" and (inv.paid_amount or 0) == 0:
             return inv
 
-    factor = Decimal(str(min(max(percentage, 1), 100) / 100))
-
     import json
+
+    # Cumulative paid across all invoices for this project (sum paid_amount, not just "paid" status)
+    all_invs = db.query(Invoice).filter_by(ref_model="service_project", ref_id=project.id).all()
+    total_previously_paid = sum(Decimal(str(i.paid_amount or 0)) for i in all_invs)
+
+    project_total = project.total or Decimal("0")
+    remaining = max(project_total - total_previously_paid, Decimal("0"))
+
+    if amount is not None:
+        inv_total = min(Decimal(str(amount)), remaining if remaining > 0 else project_total)
+        inv_total = inv_total.quantize(Decimal("0.01"))
+        factor = (inv_total / project_total) if project_total > 0 else Decimal("1")
+        pct_display = round(float(factor) * 100)
+    elif percentage is not None:
+        factor = Decimal(str(min(max(percentage, 1), 100) / 100))
+        inv_total = (project_total * factor).quantize(Decimal("0.01"))
+        pct_display = int(percentage)
+    else:
+        # Default: full remaining balance
+        inv_total = remaining if remaining > 0 else project_total
+        factor = (inv_total / project_total) if project_total > 0 else Decimal("1")
+        pct_display = round(float(factor) * 100)
+
     items = [
         {
             "description": m.title or m.description or "",
             "quantity":    float(m.quantity),
             "unit_price":  float(m.unit_price),
-            "total":       float((m.line_total or m.total or 0) * factor),
+            "total":       float((m.line_total or Decimal("0")) * factor),
         }
         for m in project.milestones
     ]
@@ -297,10 +320,16 @@ def generate_invoice(db: Session, project_id: int, percentage: float = 100.0,
     subtotal = (project.subtotal        * factor).quantize(Decimal("0.01"))
     discount = (project.discount_amount * factor).quantize(Decimal("0.01"))
     tax      = (project.tax_amount      * factor).quantize(Decimal("0.01"))
-    total    = (project.total           * factor).quantize(Decimal("0.01"))
 
-    partial_note = f"Facture partielle : {int(percentage)}% du montant total du projet." if percentage < 100 else None
-    notes = "\n".join(filter(None, [partial_note, project.notes])) or None
+    notes_parts = []
+    if pct_display < 100:
+        notes_parts.append(f"Facture partielle : {pct_display}% du montant total du projet.")
+    if total_previously_paid > 0:
+        cur = getattr(project, "currency", "XAF") or "XAF"
+        notes_parts.append(f"Déjà facturé et payé : {int(total_previously_paid):,} {cur}.".replace(",", " "))
+    if project.notes:
+        notes_parts.append(project.notes)
+    notes = "\n".join(notes_parts) or None
 
     inv = Invoice(
         company_id      = company_id,
@@ -312,9 +341,9 @@ def generate_invoice(db: Session, project_id: int, percentage: float = 100.0,
         subtotal        = subtotal,
         discount_amount = discount,
         tax_amount      = tax,
-        total           = total,
+        total           = inv_total,
         paid_amount     = Decimal("0"),
-        balance_due     = total,
+        balance_due     = inv_total,
         line_items_json = json.dumps(items),
         notes           = notes,
         created_by      = created_by,

@@ -3,7 +3,8 @@ app/modules/service_projects/router.py
 All routes are protected (require valid JWT).
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -109,49 +110,129 @@ def skip_br(
 # ── Invoice sub-resource ──────────────────────────────────────────────────────
 
 class InvoiceGeneratePayload(BaseModel):
-    percentage: float = 100.0
+    percentage: Optional[float] = None
+    amount: Optional[float] = None
 
 
 @router.post("/{project_id}/invoice", status_code=201)
 def generate_invoice(project_id: int, body: Optional[InvoiceGeneratePayload] = None,
                      db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    pct = body.percentage if body else 100.0
-    inv = ctrl.generate_invoice(db, project_id, pct, current_user.company_id, current_user.id)
+    pct = body.percentage if body else None
+    amt = body.amount if body else None
+    inv = ctrl.generate_invoice(db, project_id, pct, amt, current_user.company_id, current_user.id)
+    # Cumulative paid across all invoices for this project
+    from app.modules.finance.models import Invoice as InvModel
+    from decimal import Decimal as D
+    all_invs = db.query(InvModel).filter_by(ref_model="service_project", ref_id=project_id).all()
+    total_previously_paid = float(sum(D(str(i.paid_amount or 0)) for i in all_invs))
+
     return {
-        "id":             inv.id,
-        "invoice_number": inv.invoice_number,
-        "customer_id":    inv.customer_id,
-        "subtotal":       float(inv.subtotal),
-        "discount_amount":float(inv.discount_amount),
-        "tax_amount":     float(inv.tax_amount),
-        "total":          float(inv.total),
-        "paid_amount":    float(inv.paid_amount),
-        "balance_due":    float(inv.balance_due),
-        "status":         inv.status,
-        "line_items_json":inv.line_items_json,
-        "notes":          inv.notes,
-        "created_at":     inv.created_at.isoformat(),
+        "id":                   inv.id,
+        "invoice_number":       inv.invoice_number,
+        "customer_id":          inv.customer_id,
+        "subtotal":             float(inv.subtotal),
+        "discount_amount":      float(inv.discount_amount),
+        "tax_amount":           float(inv.tax_amount),
+        "total":                float(inv.total),
+        "paid_amount":          float(inv.paid_amount),
+        "balance_due":          float(inv.balance_due),
+        "status":               inv.status,
+        "line_items_json":      inv.line_items_json,
+        "notes":                inv.notes,
+        "created_at":           inv.created_at.isoformat(),
+        "total_previously_paid": total_previously_paid,
     }
 
 
 @router.get("/{project_id}/invoice")
 def get_invoice(project_id: int, db: Session = Depends(get_db)):
     inv = ctrl.get_invoice(db, project_id)
+    from app.modules.finance.models import Invoice as InvModel
+    from decimal import Decimal as D
+    all_invs = db.query(InvModel).filter_by(ref_model="service_project", ref_id=project_id).all()
+    total_previously_paid = float(sum(D(str(i.paid_amount or 0)) for i in all_invs))
     return {
-        "id":             inv.id,
-        "invoice_number": inv.invoice_number,
-        "customer_id":    inv.customer_id,
-        "subtotal":       float(inv.subtotal),
-        "discount_amount":float(inv.discount_amount),
-        "tax_amount":     float(inv.tax_amount),
-        "total":          float(inv.total),
-        "paid_amount":    float(inv.paid_amount),
-        "balance_due":    float(inv.balance_due),
-        "status":         inv.status,
-        "line_items_json":inv.line_items_json,
-        "notes":          inv.notes,
-        "created_at":     inv.created_at.isoformat(),
+        "id":                    inv.id,
+        "invoice_number":        inv.invoice_number,
+        "customer_id":           inv.customer_id,
+        "subtotal":              float(inv.subtotal),
+        "discount_amount":       float(inv.discount_amount),
+        "tax_amount":            float(inv.tax_amount),
+        "total":                 float(inv.total),
+        "paid_amount":           float(inv.paid_amount),
+        "balance_due":           float(inv.balance_due),
+        "status":                inv.status,
+        "line_items_json":       inv.line_items_json,
+        "notes":                 inv.notes,
+        "created_at":            inv.created_at.isoformat(),
+        "total_previously_paid": total_previously_paid,
     }
+
+
+class CancelProjectBody(BaseModel):
+    reason: str
+    password: str
+
+class DeleteProjectBody(BaseModel):
+    password: str
+
+@router.post("/{project_id}/cancel", status_code=200, response_model=ServiceProjectOut)
+def cancel_project(project_id: int, body: CancelProjectBody,
+                   db: Session = Depends(get_db),
+                   current_user=Depends(get_current_user)):
+    """Cancel a project at any stage. Requires superadmin password."""
+    from app.core.security import verify_password
+    if not current_user.is_superadmin:
+        raise HTTPException(403, "Superadmin required")
+    if not verify_password(body.password, current_user.hashed_password):
+        raise HTTPException(403, "Incorrect password")
+    project = ctrl.get_project(db, project_id)
+    if project.status == ServiceProjectStatus.cancelled:
+        raise HTTPException(400, "Project is already cancelled")
+    project.status = ServiceProjectStatus.cancelled
+    project.cancel_reason = body.reason.strip()
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.delete("/{project_id}", status_code=204)
+def delete_project(project_id: int, body: DeleteProjectBody,
+                   db: Session = Depends(get_db),
+                   current_user=Depends(get_current_user)):
+    """Permanently delete a cancelled project. Requires superadmin password."""
+    from app.core.security import verify_password
+    if not current_user.is_superadmin:
+        raise HTTPException(403, "Superadmin required")
+    if not verify_password(body.password, current_user.hashed_password):
+        raise HTTPException(403, "Incorrect password")
+    project = ctrl.get_project(db, project_id)
+    if project.status != ServiceProjectStatus.cancelled:
+        raise HTTPException(400, "Only cancelled projects can be deleted")
+    db.delete(project)
+    db.commit()
+
+
+@router.delete("/{project_id}/invoice", status_code=204)
+def delete_invoice(project_id: int, db: Session = Depends(get_db),
+                   current_user=Depends(get_current_user)):
+    """Delete (soft) the invoice linked to a project and reset the project back to invoiceable state."""
+    from app.modules.finance.models import Invoice as InvModel
+    project = ctrl.get_project(db, project_id)
+    if not project.invoice_id:
+        raise HTTPException(404, "No invoice for this project")
+    inv = db.query(InvModel).filter_by(id=project.invoice_id).first()
+    if not inv:
+        raise HTTPException(404, "Invoice not found")
+    if float(inv.paid_amount or 0) > 0:
+        raise HTTPException(400, "Cannot delete a partially or fully paid invoice")
+    inv.deleted_at = datetime.utcnow()
+    project.invoice_id = None
+    # Revert status: go back to br_received if skip_br was used, else completed
+    from app.modules.service_projects.models import ServiceProjectStatus
+    project.status = ServiceProjectStatus.br_received if project.skip_br else ServiceProjectStatus.completed
+    project.invoiced_at = None
+    db.commit()
 
 
 # ── Milestones ────────────────────────────────────────────────────────────────
