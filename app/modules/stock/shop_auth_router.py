@@ -343,3 +343,113 @@ def get_my_orders(auth=Depends(_get_customer), db: Session = Depends(get_db)):
             "created_at":     o.created_at.isoformat(),
         })
     return result
+
+
+# ── Customer shipments ────────────────────────────────────────────────────────
+
+@router.get("/shipments")
+def get_my_shipments(auth=Depends(_get_customer), db: Session = Depends(get_db)):
+    """Return all cargo shipments belonging to the authenticated customer."""
+    from app.modules.cargo.models import Shipment, TrackingEvent
+    _, customer = auth
+    shipments = (
+        db.query(Shipment)
+        .filter_by(customer_id=customer.id)
+        .order_by(Shipment.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    result = []
+    for s in shipments:
+        last_event = (
+            db.query(TrackingEvent)
+            .filter_by(shipment_id=s.id, is_public=True)
+            .order_by(TrackingEvent.created_at.desc())
+            .first()
+        )
+        result.append({
+            "id":               s.id,
+            "tracking_number":  s.tracking_number,
+            "status":           s.status,
+            "shipment_type":    s.shipment_type,
+            "route":            s.route_legacy,
+            "sender_name":      s.sender_name,
+            "receiver_name":    s.receiver_name,
+            "receiver_country": s.receiver_country,
+            "weight_kg":        float(s.weight_kg) if s.weight_kg else None,
+            "declared_value":   float(s.declared_value) if s.declared_value else None,
+            "declared_value_currency": s.declared_value_currency,
+            "created_at":       s.created_at.isoformat(),
+            "last_event":       last_event.event_type if last_event else None,
+            "last_event_at":    last_event.created_at.isoformat() if last_event else None,
+            "last_location":    last_event.location if last_event else None,
+        })
+    return result
+
+
+@router.get("/shipments/{tracking_number}")
+def get_my_shipment(tracking_number: str, auth=Depends(_get_customer), db: Session = Depends(get_db)):
+    """Return a specific shipment with full tracking timeline (customer must own it)."""
+    from app.modules.cargo.models import Shipment, TrackingEvent, ShipmentItem
+    _, customer = auth
+    shipment = db.query(Shipment).filter_by(
+        tracking_number=tracking_number.upper(),
+        customer_id=customer.id,
+    ).first()
+    if not shipment:
+        raise HTTPException(404, "Expédition introuvable")
+
+    events = (
+        db.query(TrackingEvent)
+        .filter_by(shipment_id=shipment.id, is_public=True)
+        .order_by(TrackingEvent.created_at.asc())
+        .all()
+    )
+    items = (
+        db.query(ShipmentItem)
+        .filter_by(shipment_id=shipment.id)
+        .order_by(ShipmentItem.sort_order)
+        .all()
+    )
+
+    return {
+        "id":               shipment.id,
+        "tracking_number":  shipment.tracking_number,
+        "status":           shipment.status,
+        "shipment_type":    shipment.shipment_type,
+        "route":            shipment.route_legacy,
+        "priority":         shipment.priority,
+        "sender_name":      shipment.sender_name,
+        "sender_phone":     shipment.sender_phone,
+        "receiver_name":    shipment.receiver_name,
+        "receiver_phone":   shipment.receiver_phone,
+        "receiver_country": shipment.receiver_country,
+        "receiver_address": shipment.receiver_address,
+        "weight_kg":        float(shipment.weight_kg) if shipment.weight_kg else None,
+        "declared_value":   float(shipment.declared_value) if shipment.declared_value else None,
+        "declared_value_currency": shipment.declared_value_currency,
+        "content_description": shipment.content_description,
+        "delivery_type":    shipment.delivery_type,
+        "insurance_status": shipment.insurance_status,
+        "created_at":       shipment.created_at.isoformat(),
+        "items": [
+            {
+                "description":   it.description,
+                "quantity":      float(it.quantity),
+                "unit":          it.unit,
+                "weight_kg":     float(it.weight_kg) if it.weight_kg else None,
+                "tracking_number": it.tracking_number,
+            }
+            for it in items
+        ],
+        "events": [
+            {
+                "event_type":  e.event_type,
+                "description": e.description,
+                "location":    e.location,
+                "timestamp":   e.created_at.isoformat(),
+                "photos":      e.photos or [],
+            }
+            for e in events
+        ],
+    }
