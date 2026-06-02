@@ -453,3 +453,126 @@ def get_my_shipment(tracking_number: str, auth=Depends(_get_customer), db: Sessi
             for e in events
         ],
     }
+
+
+@router.get("/shipments/{tracking_number}/invoice")
+def get_my_shipment_invoice(tracking_number: str, auth=Depends(_get_customer), db: Session = Depends(get_db)):
+    """Return the invoice for a customer's shipment (if one exists)."""
+    from app.modules.cargo.models import Shipment
+    from app.modules.finance.models import Invoice, Payment
+    _, customer = auth
+    shipment = db.query(Shipment).filter_by(
+        tracking_number=tracking_number.upper(),
+        customer_id=customer.id,
+    ).first()
+    if not shipment:
+        raise HTTPException(404, "Expédition introuvable")
+
+    inv = (
+        db.query(Invoice)
+        .filter_by(ref_model="shipment", ref_id=shipment.id)
+        .filter(Invoice.status != "cancelled")
+        .order_by(Invoice.id.desc())
+        .first()
+    )
+    if not inv:
+        raise HTTPException(404, "Aucune facture pour cette expédition")
+
+    payments = db.query(Payment).filter_by(invoice_id=inv.id).all()
+    return {
+        "id":             inv.id,
+        "invoice_number": inv.invoice_number,
+        "status":         inv.status,
+        "total":          float(inv.total),
+        "paid_amount":    float(inv.paid_amount or 0),
+        "balance_due":    float(inv.balance_due or 0),
+        "currency":       inv.currency,
+        "created_at":     inv.created_at.isoformat(),
+        "payments": [
+            {
+                "amount":         float(p.amount),
+                "currency":       p.currency,
+                "payment_method": p.payment_method,
+                "confirmed_at":   p.confirmed_at.isoformat() if p.confirmed_at else None,
+            }
+            for p in payments
+        ],
+    }
+
+
+# ── Pickup requests ───────────────────────────────────────────────────────────
+
+class PickupRequestIn(BaseModel):
+    address:             str
+    city:                Optional[str] = None
+    content_description: Optional[str] = None
+    estimated_weight_kg: Optional[float] = None
+    destination_country: Optional[str] = None
+    receiver_name:       Optional[str] = None
+    receiver_phone:      Optional[str] = None
+    preferred_date:      Optional[str] = None   # YYYY-MM-DD
+    notes:               Optional[str] = None
+
+
+@router.post("/pickup-requests", status_code=201)
+def create_pickup_request(body: PickupRequestIn, auth=Depends(_get_customer), db: Session = Depends(get_db)):
+    """Customer submits a pickup request."""
+    from app.modules.cargo.models import PickupRequest
+    from app.core.enums import SequenceType
+    _, customer = auth
+
+    number = next_sequence(db, SequenceType.pickup_request)
+    req = PickupRequest(
+        company_id=customer.company_id,
+        customer_id=customer.id,
+        pickup_number=number,
+        address=body.address.strip(),
+        city=body.city,
+        notes="\n".join(filter(None, [
+            f"Description: {body.content_description}" if body.content_description else None,
+            f"Poids estimé: {body.estimated_weight_kg} kg" if body.estimated_weight_kg else None,
+            f"Destination: {body.destination_country}" if body.destination_country else None,
+            f"Destinataire: {body.receiver_name} {body.receiver_phone or ''}" if body.receiver_name else None,
+            f"Date souhaitée: {body.preferred_date}" if body.preferred_date else None,
+            body.notes or None,
+        ])) or None,
+        status="pending",
+    )
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return {
+        "id":             req.id,
+        "pickup_number":  req.pickup_number,
+        "status":         req.status,
+        "address":        req.address,
+        "city":           req.city,
+        "created_at":     req.created_at.isoformat(),
+    }
+
+
+@router.get("/pickup-requests")
+def list_pickup_requests(auth=Depends(_get_customer), db: Session = Depends(get_db)):
+    """List customer's pickup requests."""
+    from app.modules.cargo.models import PickupRequest
+    _, customer = auth
+    reqs = (
+        db.query(PickupRequest)
+        .filter_by(customer_id=customer.id)
+        .order_by(PickupRequest.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return [
+        {
+            "id":            r.id,
+            "pickup_number": r.pickup_number,
+            "status":        r.status,
+            "address":       r.address,
+            "city":          r.city,
+            "notes":         r.notes,
+            "created_at":    r.created_at.isoformat(),
+            "shipment_id":   r.shipment_id,
+        }
+        for r in reqs
+    ]
