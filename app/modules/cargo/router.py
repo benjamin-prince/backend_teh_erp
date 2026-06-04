@@ -99,6 +99,8 @@ class ShipmentUpdate(BaseModel):
     customs_value:       Optional[float] = None
     content_description: Optional[str]   = None
     notes:               Optional[str]   = None
+    flat_rate:          Optional[float] = None
+    flat_rate_currency: Optional[str]   = None
     pickup_type:       Optional[str] = None
     pickup_location:   Optional[str] = None
     delivery_type:     Optional[str] = None
@@ -211,7 +213,7 @@ def update_shipment(
     if not s:
         raise HTTPException(404, "Shipment not found")
 
-    for k, v in body.model_dump(exclude_none=True).items():
+    for k, v in body.model_dump(exclude_unset=True).items():
         setattr(s, k, v)
     s.updated_at = datetime.utcnow()
     db.commit()

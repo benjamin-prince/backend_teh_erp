@@ -85,6 +85,9 @@ class Shipment(Base):
     # DB-driven route (nullable — old shipments keep string route for compat)
     cargo_route_id     = Column(Integer, ForeignKey("cargo_routes.id"), nullable=True)
 
+    flat_rate          = Column(Numeric(14, 2), nullable=True)
+    flat_rate_currency = Column(String(10), nullable=True)
+
     photo_count        = Column(Integer, default=0)
     notes              = Column(Text, nullable=True)
     created_by         = Column(Integer, nullable=True)
