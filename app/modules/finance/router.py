@@ -135,6 +135,17 @@ def update_invoice(
         raise HTTPException(400, "Cannot update a cancelled invoice")
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(inv, k, v)
+    # Recalculate status based on actual paid vs total
+    paid = float(inv.paid_amount or 0)
+    total = float(inv.total or 0)
+    inv.balance_due = max(total - paid, 0)
+    if total > 0:
+        if paid >= total:
+            inv.status = InvoiceStatus.paid
+        elif paid > 0:
+            inv.status = InvoiceStatus.partial
+        else:
+            inv.status = InvoiceStatus.draft
     from datetime import datetime as _dt
     inv.updated_at = _dt.utcnow()
     db.commit()
@@ -200,6 +211,41 @@ def record_payment(
     db.commit()
     db.refresh(payment)
     return payment
+
+
+@router.delete("/payments/{payment_id}", status_code=204)
+def delete_payment(
+    payment_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:payments")),
+):
+    """Delete a payment and recalculate invoice status."""
+    q = db.query(Payment).filter(Payment.id == payment_id)
+    if not current_user.is_superadmin:
+        q = q.filter(Payment.company_id == current_user.company_id)
+    payment = q.first()
+    if not payment:
+        raise HTTPException(404, "Payment not found")
+    inv = db.query(Invoice).filter_by(id=payment.invoice_id).first()
+    db.delete(payment)
+    db.flush()
+    if inv:
+        # Recalculate from remaining payments
+        from sqlalchemy import func
+        total_paid = db.query(func.sum(Payment.amount)).filter_by(
+            invoice_id=inv.id
+        ).scalar() or 0
+        inv.paid_amount = float(total_paid)
+        inv.balance_due = max(float(inv.total) - inv.paid_amount, 0)
+        if inv.paid_amount <= 0:
+            inv.status = InvoiceStatus.draft
+        elif inv.balance_due <= 0:
+            inv.status = InvoiceStatus.paid
+        else:
+            inv.status = InvoiceStatus.partial
+        inv.paid_at = None if inv.paid_amount <= 0 else inv.paid_at
+        inv.updated_at = datetime.utcnow()
+    db.commit()
 
 
 @router.get("/payments")
