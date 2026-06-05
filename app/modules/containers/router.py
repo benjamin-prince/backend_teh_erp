@@ -269,7 +269,8 @@ class ShipmentOut(BaseModel):
     tracking_number: Optional[str]
     customer_id: int
     shipment_type: str
-    route: str
+    route: Optional[str] = None
+    route_legacy: Optional[str] = None
     status: str
     receiver_name: Optional[str]
     receiver_phone: Optional[str]
