@@ -289,6 +289,8 @@ class ContainerOut(BaseModel):
 
     total_spent: float
     total_earned: float
+    total_receivable: float = 0   # sum of invoice totals
+    total_paid: float = 0         # sum of invoice paid amounts
     currency: str
     packages_count: int
     customers_count: int
@@ -457,13 +459,35 @@ def create_container(
     raise HTTPException(500, "Failed to generate unique container number")
 
 
-@router.get("/{cid}", response_model=ContainerOut)
+@router.get("/{cid}")
 def get_container(
     cid: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return _get(db, cid, current_user.company_id)
+    container = _get(db, cid, current_user.company_id)
+    links = db.execute(
+        select(ContainerShipment.shipment_id).where(ContainerShipment.container_id == cid)
+    ).scalars().all()
+    invoices = db.execute(
+        select(Invoice).where(
+            Invoice.ref_model == "shipment",
+            Invoice.ref_id.in_(links),
+            Invoice.deleted_at.is_(None),
+            Invoice.cancelled_at.is_(None),
+        )
+    ).scalars().all() if links else []
+    total_receivable = sum(float(inv.total or 0) for inv in invoices)
+    total_paid       = sum(float(inv.paid_amount or 0) for inv in invoices)
+    currencies = list({inv.currency for inv in invoices if inv.currency})
+    currency = currencies[0] if len(currencies) == 1 else container.currency
+    d = {c.name: getattr(container, c.name) for c in container.__table__.columns}
+    d["shipping_line"] = None
+    d["broker"] = None
+    d["total_receivable"] = total_receivable
+    d["total_paid"] = total_paid
+    d["currency"] = currency
+    return d
 
 
 @router.patch("/{cid}", response_model=ContainerOut)
