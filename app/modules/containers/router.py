@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.security import verify_password
 from app.modules.cargo.models import Shipment, TrackingEvent
+from app.modules.finance.models import Invoice
 from app.modules.containers.models import (
     CONTAINER_TO_SHIPMENT_STATUS,
     CONTAINER_TO_TRACKING_EVENT,
@@ -30,6 +31,27 @@ from app.modules.users.models import User
 
 
 router = APIRouter(prefix="/api/v1/containers", tags=["containers"])
+
+
+def _invoice_for(db: Session, shipment_id: int) -> dict | None:
+    inv = db.execute(
+        select(Invoice)
+        .where(
+            Invoice.ref_model == "shipment",
+            Invoice.ref_id == shipment_id,
+            Invoice.deleted_at.is_(None),
+            Invoice.cancelled_at.is_(None),
+        )
+        .order_by(Invoice.id.desc())
+    ).scalar_one_or_none()
+    if not inv:
+        return None
+    return {
+        "invoice_total":  float(inv.total or 0),
+        "invoice_paid":   float(inv.paid_amount or 0),
+        "invoice_status": inv.status,
+        "invoice_currency": inv.currency,
+    }
 
 
 def _get(db: Session, cid: int, company_id: int) -> Container:
@@ -499,7 +521,7 @@ def delete_container(
     db.commit()
 
 
-@router.get("/{cid}/shipments", response_model=List[ShipmentOut])
+@router.get("/{cid}/shipments")
 def list_shipments(
     cid: int,
     db: Session = Depends(get_db),
@@ -516,15 +538,22 @@ def list_shipments(
 
     shipment_ids = [link.shipment_id for link in links]
 
-    return (
-        db.execute(
-            select(Shipment)
-            .where(Shipment.id.in_(shipment_ids))
-            .order_by(Shipment.created_at.desc())
-        )
-        .scalars()
-        .all()
-    )
+    shipments = db.execute(
+        select(Shipment)
+        .where(Shipment.id.in_(shipment_ids))
+        .order_by(Shipment.created_at.desc())
+    ).scalars().all()
+
+    from app.modules.customers.models import Customer
+    result = []
+    for s in shipments:
+        d = {c.name: getattr(s, c.name) for c in s.__table__.columns}
+        cust = db.execute(select(Customer).where(Customer.id == s.customer_id)).scalar_one_or_none()
+        d["customer"] = {"id": cust.id, "full_name": cust.full_name} if cust else None
+        inv = _invoice_for(db, s.id)
+        d.update(inv or {"invoice_total": None, "invoice_paid": None, "invoice_status": None, "invoice_currency": None})
+        result.append(d)
+    return result
 
 
 @router.get("/{cid}/available-shipments")
@@ -561,6 +590,8 @@ def available_shipments(
         d = {c.name: getattr(s, c.name) for c in s.__table__.columns}
         cust = db.execute(select(Customer).where(Customer.id == s.customer_id)).scalar_one_or_none()
         d["customer"] = {"id": cust.id, "full_name": cust.full_name} if cust else None
+        inv = _invoice_for(db, s.id)
+        d.update(inv or {"invoice_total": None, "invoice_paid": None, "invoice_status": None, "invoice_currency": None})
         result.append(d)
     return result
 
