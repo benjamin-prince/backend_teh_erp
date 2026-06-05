@@ -388,7 +388,6 @@ def list_containers(
             | Container.invoice_number.ilike(like)
             | Container.depart_from.ilike(like)
             | Container.destination.ilike(like)
-            | Container.owner_name.ilike(like)
             | Container.owner_company.ilike(like)
             | Container.broker_name.ilike(like)
             | Container.broker_company.ilike(like)
@@ -401,6 +400,7 @@ def list_containers(
             .limit(limit)
         )
         .scalars()
+        .unique()
         .all()
     )
 
