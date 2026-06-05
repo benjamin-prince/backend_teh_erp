@@ -152,8 +152,26 @@ def _recalc(db: Session, container: Container) -> None:
             ).scalar_one()
             or 0
         )
+
+        # Sum invoice totals across all shipments → total_earned
+        invoices = db.execute(
+            select(Invoice).where(
+                Invoice.ref_model == "shipment",
+                Invoice.ref_id.in_(shipment_ids),
+                Invoice.deleted_at.is_(None),
+                Invoice.cancelled_at.is_(None),
+            )
+        ).scalars().all()
+
+        container.total_earned = sum(float(inv.total or 0) for inv in invoices)
+
+        # Update container currency to match invoices if they share one
+        currencies = list({inv.currency for inv in invoices if inv.currency})
+        if len(currencies) == 1:
+            container.currency = currencies[0]
     else:
         container.customers_count = 0
+        container.total_earned = 0
 
 
 class ShippingLineEmbed(BaseModel):
