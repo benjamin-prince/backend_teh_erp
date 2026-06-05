@@ -139,6 +139,8 @@ class Container(Base):
     type   = Column(Enum(ContainerType),   nullable=False, default=ContainerType.sea)
     status = Column(Enum(ContainerStatus), nullable=False, default=ContainerStatus.preparing)
 
+    cargo_route_id = Column(Integer, ForeignKey("cargo_routes.id"), nullable=True)
+
     depart_from    = Column(String(255), nullable=True)
     destination    = Column(String(255), nullable=True)
     load_date      = Column(Date, nullable=True)
@@ -164,6 +166,7 @@ class Container(Base):
 
     shipping_line  = relationship("ShippingLine", foreign_keys=[shipping_line_id])
     broker         = relationship("Broker",        foreign_keys=[broker_id])
+    cargo_route    = relationship("CargoRoute",    foreign_keys=[cargo_route_id], lazy="joined")
     shipment_links = relationship(
         "ContainerShipment",
         back_populates="container",

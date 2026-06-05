@@ -221,6 +221,86 @@ class PersonalDebtPayment(Base):
     debt = relationship("PersonalDebt", back_populates="payments")
 
 
+class PersonalCreditCard(Base):
+    """A credit card with its limit, balance and payment terms."""
+    __tablename__ = "personal_credit_cards"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    bank_name         = Column(String(200), nullable=False)
+    card_name         = Column(String(200), nullable=False)
+    last_four         = Column(String(4),   nullable=True)
+    credit_limit      = Column(Float,       nullable=False)
+    current_balance   = Column(Float,       nullable=False, default=0)
+    apr               = Column(Float,       nullable=True)            # annual %
+    min_payment_pct   = Column(Float,       nullable=True)            # % of balance
+    min_payment_fixed = Column(Float,       nullable=True)            # fixed floor
+    statement_day     = Column(Integer,     nullable=True)            # day of month
+    due_day           = Column(Integer,     nullable=True)            # day of month
+    currency          = Column(String(10),  nullable=False, default="XAF")
+    status            = Column(String(20),  nullable=False, default="active")
+    # active | maxed | delinquent | closed
+    notes             = Column(Text,        nullable=True)
+    created_at        = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at        = Column(DateTime(timezone=True), onupdate=func.now())
+
+    payments = relationship("PersonalCreditCardPayment", back_populates="card",
+                            cascade="all, delete-orphan", order_by="PersonalCreditCardPayment.payment_date")
+
+
+class PersonalCreditCardPayment(Base):
+    __tablename__ = "personal_credit_card_payments"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    card_id      = Column(Integer, ForeignKey("personal_credit_cards.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount       = Column(Float,       nullable=False)
+    currency     = Column(String(10),  nullable=False, default="XAF")
+    payment_date = Column(Date,        nullable=False)
+    notes        = Column(Text,        nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+    card = relationship("PersonalCreditCard", back_populates="payments")
+
+
+class PersonalLoan(Base):
+    """A bank loan, company advance or collection debt."""
+    __tablename__ = "personal_loans"
+
+    id              = Column(Integer,    primary_key=True, index=True)
+    lender_name     = Column(String(200), nullable=False)
+    loan_type       = Column(String(30),  nullable=False, default="bank")
+    # bank | company | collection | mortgage | auto | personal | student | other
+    original_amount = Column(Float,       nullable=False)
+    current_balance = Column(Float,       nullable=False)
+    monthly_payment = Column(Float,       nullable=True)
+    interest_rate   = Column(Float,       nullable=True)    # annual %
+    start_date      = Column(Date,        nullable=False)
+    maturity_date   = Column(Date,        nullable=True)
+    payment_day     = Column(Integer,     nullable=True)    # day of month
+    currency        = Column(String(10),  nullable=False, default="XAF")
+    status          = Column(String(20),  nullable=False, default="current")
+    # current | behind | default | paid_off
+    notes           = Column(Text,        nullable=True)
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at      = Column(DateTime(timezone=True), onupdate=func.now())
+
+    payments = relationship("PersonalLoanPayment", back_populates="loan",
+                            cascade="all, delete-orphan", order_by="PersonalLoanPayment.payment_date")
+
+
+class PersonalLoanPayment(Base):
+    __tablename__ = "personal_loan_payments"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    loan_id      = Column(Integer, ForeignKey("personal_loans.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount       = Column(Float,      nullable=False)
+    currency     = Column(String(10), nullable=False, default="XAF")
+    payment_date = Column(Date,       nullable=False)
+    notes        = Column(Text,       nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+    loan = relationship("PersonalLoan", back_populates="payments")
+
+
 class DailySummary(Base):
     """Auto-computed or manually enriched daily note"""
     __tablename__ = "personal_daily_summary"

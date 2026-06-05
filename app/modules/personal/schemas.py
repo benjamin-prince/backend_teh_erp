@@ -402,3 +402,107 @@ class PersonalDashboardStats(BaseModel):
     active_goals: int
     avg_sleep: Optional[float]
     avg_mood: Optional[float]
+
+# ── Credit Cards ──────────────────────────────────────────────────────────────
+
+class CreditCardCreate(BaseModel):
+    bank_name:         str
+    card_name:         str
+    last_four:         Optional[str]  = None
+    credit_limit:      float = Field(..., gt=0)
+    current_balance:   float = Field(0, ge=0)
+    apr:               Optional[float] = Field(None, ge=0)
+    min_payment_pct:   Optional[float] = Field(None, ge=0)
+    min_payment_fixed: Optional[float] = Field(None, ge=0)
+    statement_day:     Optional[int]   = Field(None, ge=1, le=31)
+    due_day:           Optional[int]   = Field(None, ge=1, le=31)
+    currency:          str = "XAF"
+    status:            str = "active"
+    notes:             Optional[str] = None
+
+class CreditCardUpdate(BaseModel):
+    bank_name:         Optional[str]   = None
+    card_name:         Optional[str]   = None
+    last_four:         Optional[str]   = None
+    credit_limit:      Optional[float] = Field(None, gt=0)
+    current_balance:   Optional[float] = Field(None, ge=0)
+    apr:               Optional[float] = Field(None, ge=0)
+    min_payment_pct:   Optional[float] = Field(None, ge=0)
+    min_payment_fixed: Optional[float] = Field(None, ge=0)
+    statement_day:     Optional[int]   = Field(None, ge=1, le=31)
+    due_day:           Optional[int]   = Field(None, ge=1, le=31)
+    currency:          Optional[str]   = None
+    status:            Optional[str]   = None
+    notes:             Optional[str]   = None
+
+class CreditCardPaymentCreate(BaseModel):
+    amount:       float = Field(..., gt=0)
+    currency:     str = "XAF"
+    payment_date: date
+    notes:        Optional[str] = None
+
+class CreditCardPaymentOut(BaseModel):
+    id: int; card_id: int; amount: float; currency: str
+    payment_date: date; notes: Optional[str]; created_at: datetime
+    class Config: from_attributes = True
+
+class CreditCardOut(BaseModel):
+    id: int; bank_name: str; card_name: str; last_four: Optional[str]
+    credit_limit: float; current_balance: float; apr: Optional[float]
+    min_payment_pct: Optional[float]; min_payment_fixed: Optional[float]
+    statement_day: Optional[int]; due_day: Optional[int]
+    currency: str; status: str; notes: Optional[str]; created_at: datetime
+    total_paid: float = 0.0
+    payments: list[CreditCardPaymentOut] = []
+    class Config: from_attributes = True
+
+# ── Loans ─────────────────────────────────────────────────────────────────────
+
+class LoanCreate(BaseModel):
+    lender_name:     str
+    loan_type:       str = "bank"
+    original_amount: float = Field(..., gt=0)
+    current_balance: float = Field(..., ge=0)
+    monthly_payment: Optional[float] = Field(None, ge=0)
+    interest_rate:   Optional[float] = Field(None, ge=0)
+    start_date:      date
+    maturity_date:   Optional[date]  = None
+    payment_day:     Optional[int]   = Field(None, ge=1, le=31)
+    currency:        str = "XAF"
+    status:          str = "current"
+    notes:           Optional[str]   = None
+
+class LoanUpdate(BaseModel):
+    lender_name:     Optional[str]   = None
+    loan_type:       Optional[str]   = None
+    original_amount: Optional[float] = Field(None, gt=0)
+    current_balance: Optional[float] = Field(None, ge=0)
+    monthly_payment: Optional[float] = Field(None, ge=0)
+    interest_rate:   Optional[float] = Field(None, ge=0)
+    start_date:      Optional[date]  = None
+    maturity_date:   Optional[date]  = None
+    payment_day:     Optional[int]   = Field(None, ge=1, le=31)
+    currency:        Optional[str]   = None
+    status:          Optional[str]   = None
+    notes:           Optional[str]   = None
+
+class LoanPaymentCreate(BaseModel):
+    amount:       float = Field(..., gt=0)
+    currency:     str = "XAF"
+    payment_date: date
+    notes:        Optional[str] = None
+
+class LoanPaymentOut(BaseModel):
+    id: int; loan_id: int; amount: float; currency: str
+    payment_date: date; notes: Optional[str]; created_at: datetime
+    class Config: from_attributes = True
+
+class LoanOut(BaseModel):
+    id: int; lender_name: str; loan_type: str
+    original_amount: float; current_balance: float
+    monthly_payment: Optional[float]; interest_rate: Optional[float]
+    start_date: date; maturity_date: Optional[date]; payment_day: Optional[int]
+    currency: str; status: str; notes: Optional[str]; created_at: datetime
+    total_paid: float = 0.0
+    payments: list[LoanPaymentOut] = []
+    class Config: from_attributes = True

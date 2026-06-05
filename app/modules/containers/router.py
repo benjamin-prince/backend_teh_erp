@@ -194,6 +194,26 @@ class BrokerEmbed(BaseModel):
     email: Optional[str]
 
 
+class LocationEmbed(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    city: Optional[str] = None
+    country: Optional[str] = None
+
+
+class CargoRouteEmbed(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    code: Optional[str] = None
+    origin_country: Optional[str] = None
+    dest_country: Optional[str] = None
+    transport_mode: Optional[str] = None
+    origin_location: Optional[LocationEmbed] = None
+    dest_location: Optional[LocationEmbed] = None
+
+
 class ContainerCreate(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
@@ -214,6 +234,7 @@ class ContainerCreate(BaseModel):
     type: ContainerType = ContainerType.sea
     status: ContainerStatus = ContainerStatus.preparing
 
+    cargo_route_id: Optional[int] = None
     depart_from: Optional[str] = None
     destination: Optional[str] = None
     load_date: Optional[date] = None
@@ -246,6 +267,7 @@ class ContainerUpdate(BaseModel):
     type: Optional[ContainerType] = None
     status: Optional[ContainerStatus] = None
 
+    cargo_route_id: Optional[int] = None
     depart_from: Optional[str] = None
     destination: Optional[str] = None
     load_date: Optional[date] = None
@@ -281,6 +303,8 @@ class ContainerOut(BaseModel):
     type: str
     status: str
 
+    cargo_route_id: Optional[int] = None
+    cargo_route: Optional[CargoRouteEmbed] = None
     depart_from: Optional[str]
     destination: Optional[str]
     load_date: Optional[date]
@@ -436,6 +460,7 @@ def create_container(
                 broker_reference=payload.broker_reference,
                 type=payload.type,
                 status=payload.status,
+                cargo_route_id=payload.cargo_route_id,
                 depart_from=payload.depart_from,
                 destination=payload.destination,
                 load_date=payload.load_date,
@@ -487,6 +512,20 @@ def get_container(
     d["total_receivable"] = total_receivable
     d["total_paid"] = total_paid
     d["currency"] = currency
+    r = container.cargo_route
+    if r:
+        def _loc(loc):
+            if not loc: return None
+            return {"id": loc.id, "name": loc.name, "city": getattr(loc, "city", None), "country": getattr(loc, "country", None)}
+        d["cargo_route"] = {
+            "id": r.id, "name": r.name, "code": r.code,
+            "origin_country": r.origin_country, "dest_country": r.dest_country,
+            "transport_mode": r.transport_mode,
+            "origin_location": _loc(r.origin_location),
+            "dest_location": _loc(r.dest_location),
+        }
+    else:
+        d["cargo_route"] = None
     return d
 
 
