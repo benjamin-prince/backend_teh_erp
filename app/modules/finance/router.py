@@ -51,10 +51,13 @@ class ExpenseCreate(BaseModel):
     category: str
     description: str
     amount: float
+    currency: str = "XAF"
     payment_method: Optional[str] = None
     expense_date: datetime
     cash_session_id: Optional[int] = None
     receipt_url: Optional[str] = None
+    ref_model: Optional[str] = None
+    ref_id: Optional[int] = None
 
 
 # ── Invoices ──────────────────────────────────────────────────────────────────

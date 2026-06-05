@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.security import verify_password
 from app.modules.cargo.models import Shipment, TrackingEvent
-from app.modules.finance.models import Invoice
+from app.modules.finance.models import Invoice, Expense
 from app.modules.containers.models import (
     CONTAINER_TO_SHIPMENT_STATUS,
     CONTAINER_TO_TRACKING_EVENT,
@@ -767,3 +767,77 @@ def remove_shipment(
     db.flush()
     _recalc(db, container)
     db.commit()
+
+
+class ContainerExpenseCreate(BaseModel):
+    category: str
+    description: str
+    amount: float
+    currency: str = "USD"
+    payment_method: Optional[str] = "cash"
+    expense_date: Optional[date] = None
+
+
+@router.post("/{cid}/expenses", status_code=status.HTTP_201_CREATED)
+def add_container_expense(
+    cid: int,
+    payload: ContainerExpenseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    container = _get(db, cid, current_user.company_id)
+
+    from datetime import timezone
+    exp_date = datetime.combine(payload.expense_date, datetime.min.time()) if payload.expense_date else datetime.utcnow()
+
+    expense = Expense(
+        company_id=current_user.company_id,
+        branch_id=getattr(current_user, "branch_id", None),
+        created_by=current_user.id,
+        category=payload.category,
+        description=payload.description,
+        amount=payload.amount,
+        currency=payload.currency,
+        payment_method=payload.payment_method,
+        expense_date=exp_date,
+        ref_model="container",
+        ref_id=cid,
+    )
+    db.add(expense)
+    db.flush()
+
+    # Recalculate container total_spent from all linked expenses
+    total_spent = db.execute(
+        select(func.sum(Expense.amount)).where(
+            Expense.ref_model == "container",
+            Expense.ref_id == cid,
+            Expense.deleted_at.is_(None),
+        )
+    ).scalar_one() or 0
+
+    container.total_spent = float(total_spent)
+    db.commit()
+
+    return {"id": expense.id, "amount": float(expense.amount), "currency": expense.currency,
+            "category": expense.category, "description": expense.description,
+            "container_total_spent": float(total_spent)}
+
+
+@router.get("/{cid}/expenses")
+def list_container_expenses(
+    cid: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _get(db, cid, current_user.company_id)
+    expenses = db.execute(
+        select(Expense).where(
+            Expense.ref_model == "container",
+            Expense.ref_id == cid,
+            Expense.deleted_at.is_(None),
+        ).order_by(Expense.expense_date.desc())
+    ).scalars().all()
+    return [{"id": e.id, "category": e.category, "description": e.description,
+             "amount": float(e.amount), "currency": e.currency,
+             "payment_method": e.payment_method,
+             "expense_date": e.expense_date.isoformat() if e.expense_date else None} for e in expenses]
