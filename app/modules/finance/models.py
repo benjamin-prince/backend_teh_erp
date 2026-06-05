@@ -123,7 +123,7 @@ class Expense(Base):
     cash_session_id = Column(Integer, ForeignKey("cash_sessions.id"), nullable=True)
     ref_model    = Column(String(100), nullable=True)   # "container", "shipment", etc.
     ref_id       = Column(Integer,     nullable=True)
-    approved_by  = Column(Integer, nullable=True)
+    approved_by  = Column(Integer,     nullable=True)
     created_by   = Column(Integer, nullable=False)
     created_at   = Column(DateTime, default=datetime.utcnow, nullable=False)
     deleted_at   = Column(DateTime, nullable=True)
