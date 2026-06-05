@@ -1,14 +1,14 @@
 """add personal credit cards and loans
 
-Revision ID: n2e3f4g5h6i7
-Revises: m1d2e3f4g5h6
+Revision ID: p4g5h6i7j8k9
+Revises: n2e3f4g5h6i7
 Create Date: 2026-05-27
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "n2e3f4g5h6i7"
-down_revision = "m1d2e3f4g5h6"
+revision = "p4g5h6i7j8k9"
+down_revision = "n2e3f4g5h6i7"
 branch_labels = None
 depends_on = None
 

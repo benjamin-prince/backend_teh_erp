@@ -1,14 +1,14 @@
 """add cargo_route_id to containers
 
 Revision ID: o3f4g5h6i7j8
-Revises: n2e3f4g5h6i7
+Revises: p4g5h6i7j8k9
 Create Date: 2026-06-05
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "o3f4g5h6i7j8"
-down_revision = "n2e3f4g5h6i7"
+down_revision = "p4g5h6i7j8k9"
 branch_labels = None
 depends_on = None
 
