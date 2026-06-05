@@ -526,6 +526,44 @@ def list_shipments(
     )
 
 
+@router.get("/{cid}/available-shipments")
+def available_shipments(
+    cid: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Shipments not linked to ANY container for this company, not drafts."""
+    _get(db, cid, current_user.company_id)
+
+    in_any_container = db.execute(
+        select(ContainerShipment.shipment_id)
+        .join(Container, Container.id == ContainerShipment.container_id)
+        .where(Container.company_id == current_user.company_id)
+    ).scalars().all()
+
+    q = (
+        select(Shipment)
+        .where(
+            Shipment.company_id == current_user.company_id,
+            Shipment.deleted_at.is_(None),
+            Shipment.status != "draft",
+        )
+    )
+    if in_any_container:
+        q = q.where(Shipment.id.notin_(in_any_container))
+
+    shipments = db.execute(q.order_by(Shipment.route_legacy, Shipment.created_at.desc())).scalars().all()
+
+    from app.modules.customers.models import Customer
+    result = []
+    for s in shipments:
+        d = {c.name: getattr(s, c.name) for c in s.__table__.columns}
+        cust = db.execute(select(Customer).where(Customer.id == s.customer_id)).scalar_one_or_none()
+        d["customer"] = {"id": cust.id, "full_name": cust.full_name} if cust else None
+        result.append(d)
+    return result
+
+
 @router.post("/{cid}/shipments", status_code=status.HTTP_201_CREATED)
 def add_shipment(
     cid: int,
