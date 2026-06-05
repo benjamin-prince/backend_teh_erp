@@ -166,7 +166,7 @@ class Container(Base):
 
     shipping_line  = relationship("ShippingLine", foreign_keys=[shipping_line_id])
     broker         = relationship("Broker",        foreign_keys=[broker_id])
-    cargo_route    = relationship("CargoRoute",    foreign_keys=[cargo_route_id], lazy="joined")
+    cargo_route    = relationship("CargoRoute",    foreign_keys=[cargo_route_id], lazy="select")
     shipment_links = relationship(
         "ContainerShipment",
         back_populates="container",
