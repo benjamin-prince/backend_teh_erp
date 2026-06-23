@@ -167,6 +167,7 @@ class OrderUpdate(BaseModel):
     apply_tva: Optional[bool] = None
     notes: Optional[str] = None
     delivery_address: Optional[str] = None
+    items: Optional[List[OrderItemIn]] = None  # full replacement of line items
 
 class SkipBrBody(BaseModel):
     reason: str
@@ -179,6 +180,27 @@ def update_order(
     o = db.query(Order).filter_by(id=order_id, deleted_at=None).first()
     if not o:
         raise HTTPException(404, "Order not found")
+    # OR-001: editing line items recomputes subtotal/total; TVA state is preserved.
+    if body.items is not None:
+        if len(body.items) == 0:
+            raise HTTPException(400, "An order must keep at least one item")
+        had_tva = float(o.tax_amount or 0) > 0
+        o.items.clear()          # delete-orphan removes the previous lines
+        db.flush()
+        subtotal = 0.0
+        for it in body.items:
+            line = it.quantity * it.unit_price
+            subtotal += line
+            o.items.append(OrderItem(
+                product_id=it.product_id,
+                description=it.description,
+                quantity=it.quantity,
+                unit_price=it.unit_price,
+                line_total=line,
+            ))
+        o.subtotal = subtotal
+        o.tax_amount = round(subtotal * 0.1925, 2) if had_tva else 0
+        o.total = subtotal + float(o.tax_amount) - float(o.discount_amount or 0)
     if body.status is not None:
         valid = ["draft","proforma_sent","confirmed","bl_sent","br_received","invoiced","delivered","cancelled"]
         if body.status not in valid:
@@ -195,6 +217,7 @@ def update_order(
     o.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(o)
+    _ = o.items  # force lazy load so the response includes line items
     return o
 
 @router.post("/orders/{order_id}/skip-br")
