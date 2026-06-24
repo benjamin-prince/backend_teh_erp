@@ -352,6 +352,7 @@ def generate_invoice(db: Session, project_id: int,
     subtotal = (project.subtotal        * factor).quantize(Decimal("0.01"))
     discount = (project.discount_amount * factor).quantize(Decimal("0.01"))
     tax      = (project.tax_amount      * factor).quantize(Decimal("0.01"))
+    retenue  = ((project.retenue_amount or Decimal("0")) * factor).quantize(Decimal("0.01"))
 
     notes_parts = []
     if pct_display < 100:
@@ -373,6 +374,9 @@ def generate_invoice(db: Session, project_id: int,
         subtotal        = subtotal,
         discount_amount = discount,
         tax_amount      = tax,
+        retenue_amount  = retenue,
+        tax_type        = project.tax_type or "none",
+        tax_rate        = project.tax_rate or Decimal("0"),
         total           = inv_total,
         paid_amount     = Decimal("0"),
         balance_due     = inv_total,

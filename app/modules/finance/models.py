@@ -33,11 +33,15 @@ class Invoice(Base):
     line_items_json = Column(Text, nullable=True)
 
     subtotal       = Column(Numeric(14, 2), default=0)
-    tax_amount     = Column(Numeric(14, 2), default=0)
+    tax_amount     = Column(Numeric(14, 2), default=0)   # TVA (added)
+    retenue_amount = Column(Numeric(14, 2), default=0)   # retenue à la source (withheld)
     discount_amount = Column(Numeric(14, 2), default=0)
     total          = Column(Numeric(14, 2), nullable=False)
     paid_amount    = Column(Numeric(14, 2), default=0)
     balance_due    = Column(Numeric(14, 2), nullable=False)
+    # Tax status carried from the source order/project (none | tva | retenue)
+    tax_type       = Column(String(20), nullable=False, default="none")
+    tax_rate       = Column(Numeric(6, 3), default=0)
 
     currency       = Column(String(10), default="XAF")
     due_date       = Column(DateTime, nullable=True)
