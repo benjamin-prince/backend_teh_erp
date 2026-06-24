@@ -134,20 +134,23 @@ def list_orders(
     if status:
         q = q.filter(Order.status == status)
     orders = q.offset(skip).limit(limit).all()
-    # Tag each order with fully_paid (from its linked invoice) so the UI can
-    # drop delivered + fully-paid orders out of the active list.
+    # Attach payment info (from linked invoices) so the UI can show a money recap
+    # and drop delivered + fully-paid orders out of the active list.
     from app.modules.finance.models import Invoice
     ids = [o.id for o in orders]
-    paid = set()
+    paid_by, inv_total_by = {}, {}
     if ids:
         invs = db.query(Invoice).filter(
             Invoice.ref_model == "order", Invoice.ref_id.in_(ids)
         ).all()
         for inv in invs:
-            if float(inv.total or 0) > 0 and float(inv.balance_due or 0) <= 0.009:
-                paid.add(inv.ref_id)
+            paid_by[inv.ref_id] = paid_by.get(inv.ref_id, 0.0) + float(inv.paid_amount or 0)
+            inv_total_by[inv.ref_id] = inv_total_by.get(inv.ref_id, 0.0) + float(inv.total or 0)
     for o in orders:
-        o.fully_paid = o.id in paid
+        paid = paid_by.get(o.id, 0.0)
+        o.paid_amount = round(paid, 2)
+        o.balance_due = round(max(float(o.total or 0) - paid, 0.0), 2)
+        o.fully_paid = inv_total_by.get(o.id, 0.0) > 0 and o.balance_due <= 0.009
     return orders
 
 @router.get("/orders/{order_id}")
