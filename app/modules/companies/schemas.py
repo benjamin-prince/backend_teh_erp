@@ -16,6 +16,13 @@ class CompanyUpdate(BaseModel):
     name: Optional[str] = None
     country: Optional[str] = None
     is_active: Optional[bool] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    fax: Optional[str] = None
+    nui: Optional[str] = None
+    rccm: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
 
 class CompanyOut(BaseModel):
     id: int
@@ -26,6 +33,13 @@ class CompanyOut(BaseModel):
     country: str
     currency: str
     is_active: bool
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    fax: Optional[str] = None
+    nui: Optional[str] = None
+    rccm: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
     created_at: datetime
     model_config = {"from_attributes": True}
 
