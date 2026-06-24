@@ -21,12 +21,17 @@ class Order(Base):
     supplier_id   = Column(Integer, nullable=True)  # for purchase orders
     supplier_ref_number = Column(String(100), nullable=True)  # OR-003
 
-    # Financials — OR-001: total = sum(items) + tax - discount
+    # Financials — total = subtotal + TVA − retenue − discount
     currency      = Column(String(10), nullable=False, default="XAF")
-    subtotal      = Column(Numeric(14, 2), default=0)
-    tax_amount    = Column(Numeric(14, 2), default=0)
+    subtotal      = Column(Numeric(14, 2), default=0)   # HT base
+    tax_amount    = Column(Numeric(14, 2), default=0)   # TVA (added)
+    retenue_amount = Column(Numeric(14, 2), default=0)  # retenue à la source (withheld)
     discount_amount = Column(Numeric(14, 2), default=0)
-    total         = Column(Numeric(14, 2), default=0)
+    total         = Column(Numeric(14, 2), default=0)   # net à payer
+    # Tax configuration (one tax type at a time)
+    tax_type      = Column(String(20), nullable=False, default="none")  # none | tva | retenue
+    tax_rate      = Column(Numeric(6, 3), default=0)    # percent, e.g. 19.250
+    price_inclusive = Column(Boolean, default=False)    # entered unit prices already include TVA (TTC)
 
     # Special orders (STK-007)
     deposit_amount = Column(Numeric(14, 2), nullable=True)

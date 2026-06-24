@@ -79,10 +79,15 @@ class ServiceProject(Base):
     currency        = Column(String(10), nullable=False, default="XAF")
     subtotal        = Column(Numeric(14, 2), default=0, nullable=False)
     discount_amount = Column(Numeric(14, 2), default=0, nullable=False)
-    tax_amount      = Column(Numeric(14, 2), default=0, nullable=False)
-    total           = Column(Numeric(14, 2), default=0, nullable=False)
+    tax_amount      = Column(Numeric(14, 2), default=0, nullable=False)   # TVA (added)
+    retenue_amount  = Column(Numeric(14, 2), default=0, nullable=False)   # retenue à la source
+    total           = Column(Numeric(14, 2), default=0, nullable=False)   # net à payer
     include_tax     = Column(Boolean, default=False, nullable=False)  # legacy
-    apply_tva       = Column(Boolean, default=False, nullable=False)  # NEW canonical
+    apply_tva       = Column(Boolean, default=False, nullable=False)  # legacy canonical (→ tax_type)
+    # Tax configuration (one tax type at a time)
+    tax_type        = Column(String(20), nullable=False, default="none")  # none | tva | retenue
+    tax_rate        = Column(Numeric(6, 3), default=0, nullable=False)     # percent, e.g. 19.250
+    price_inclusive = Column(Boolean, default=False, nullable=False)       # entered prices are TTC
 
     skip_br             = Column(Boolean, default=False, nullable=False)
     skip_br_reason      = Column(Text, nullable=True)

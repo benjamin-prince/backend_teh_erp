@@ -19,6 +19,39 @@ router = APIRouter(
 )
 
 
+def compute_tax(raw_subtotal: float, tax_type: Optional[str], tax_rate: float,
+                price_inclusive: bool, discount: float):
+    """Compute (subtotal_HT, tax_amount, retenue_amount, total) for one tax type.
+
+    - none    : total = subtotal − discount
+    - tva     : added (HT) or extracted (TTC, price_inclusive); total = HT + TVA − discount
+    - retenue : withheld; total (net à payer) = subtotal − retenue − discount
+    """
+    rate = float(tax_rate or 0) / 100.0
+    disc = float(discount or 0)
+    tt = (tax_type or "none").lower()
+    if tt == "tva":
+        if price_inclusive and rate:
+            subtotal = round(raw_subtotal / (1 + rate), 2)
+            tax = round(raw_subtotal - subtotal, 2)
+        else:
+            subtotal = round(raw_subtotal, 2)
+            tax = round(raw_subtotal * rate, 2)
+        retenue = 0.0
+        total = subtotal + tax - disc
+    elif tt == "retenue":
+        subtotal = round(raw_subtotal, 2)
+        tax = 0.0
+        retenue = round(raw_subtotal * rate, 2)
+        total = subtotal - retenue - disc
+    else:
+        subtotal = round(raw_subtotal, 2)
+        tax = 0.0
+        retenue = 0.0
+        total = subtotal - disc
+    return subtotal, tax, retenue, round(total, 2)
+
+
 class OrderItemIn(BaseModel):
     product_id: Optional[int] = None
     description: str
@@ -30,7 +63,9 @@ class OrderCreate(BaseModel):
     order_type: str = "sale_order"
     currency: str = "XAF"
     items: List[OrderItemIn]
-    tax_amount: float = 0
+    tax_type: str = "none"          # none | tva | retenue
+    tax_rate: float = 0             # percent
+    price_inclusive: bool = False   # entered unit prices already include TVA (TTC)
     discount_amount: float = 0
     delivery_address: Optional[str] = None
     notes: Optional[str] = None
@@ -48,10 +83,11 @@ def create_order(
     body: OrderCreate, db: Session = Depends(get_db),
     current_user=Depends(require_permission("orders:create")),
 ):
-    """OR-001: total = sum(items) + tax - discount."""
+    """OR-001: total = subtotal + TVA − retenue − discount."""
     order_number = next_sequence(db, SequenceType.order_number)
-    subtotal = sum(i.quantity * i.unit_price for i in body.items)
-    total = subtotal + body.tax_amount - body.discount_amount
+    raw = sum(i.quantity * i.unit_price for i in body.items)
+    subtotal, tax, retenue, total = compute_tax(
+        raw, body.tax_type, body.tax_rate, body.price_inclusive, body.discount_amount)
 
     order = Order(
         company_id=current_user.company_id,
@@ -60,9 +96,13 @@ def create_order(
         order_type=body.order_type,
         currency=body.currency,
         subtotal=subtotal,
-        tax_amount=body.tax_amount,
+        tax_amount=tax,
+        retenue_amount=retenue,
         discount_amount=body.discount_amount,
         total=total,
+        tax_type=body.tax_type,
+        tax_rate=body.tax_rate,
+        price_inclusive=body.price_inclusive,
         delivery_address=body.delivery_address,
         notes=body.notes,
         created_by=current_user.id,
@@ -164,7 +204,11 @@ def resolve_exception(
 
 class OrderUpdate(BaseModel):
     status: Optional[str] = None
-    apply_tva: Optional[bool] = None
+    apply_tva: Optional[bool] = None          # legacy toggle → maps to tax_type
+    tax_type: Optional[str] = None            # none | tva | retenue
+    tax_rate: Optional[float] = None          # percent
+    price_inclusive: Optional[bool] = None
+    discount_amount: Optional[float] = None
     notes: Optional[str] = None
     delivery_address: Optional[str] = None
     items: Optional[List[OrderItemIn]] = None  # full replacement of line items
@@ -180,36 +224,53 @@ def update_order(
     o = db.query(Order).filter_by(id=order_id, deleted_at=None).first()
     if not o:
         raise HTTPException(404, "Order not found")
-    # OR-001: editing line items recomputes subtotal/total; TVA state is preserved.
+    recompute = False
+
     if body.items is not None:
         if len(body.items) == 0:
             raise HTTPException(400, "An order must keep at least one item")
-        had_tva = float(o.tax_amount or 0) > 0
         o.items.clear()          # delete-orphan removes the previous lines
         db.flush()
-        subtotal = 0.0
         for it in body.items:
-            line = it.quantity * it.unit_price
-            subtotal += line
             o.items.append(OrderItem(
                 product_id=it.product_id,
                 description=it.description,
                 quantity=it.quantity,
                 unit_price=it.unit_price,
-                line_total=line,
+                line_total=it.quantity * it.unit_price,
             ))
-        o.subtotal = subtotal
-        o.tax_amount = round(subtotal * 0.1925, 2) if had_tva else 0
-        o.total = subtotal + float(o.tax_amount) - float(o.discount_amount or 0)
+        recompute = True
+
+    # Legacy apply_tva → tax_type/tax_rate
+    if body.apply_tva is not None:
+        o.tax_type = "tva" if body.apply_tva else "none"
+        o.tax_rate = 19.25 if body.apply_tva else 0
+        recompute = True
+    if body.tax_type is not None:
+        o.tax_type = body.tax_type
+        recompute = True
+    if body.tax_rate is not None:
+        o.tax_rate = body.tax_rate
+        recompute = True
+    if body.price_inclusive is not None:
+        o.price_inclusive = body.price_inclusive
+        recompute = True
+    if body.discount_amount is not None:
+        o.discount_amount = body.discount_amount
+        recompute = True
+
+    if recompute:
+        raw = sum(float(i.quantity) * float(i.unit_price) for i in o.items)
+        subtotal, tax, retenue, total = compute_tax(
+            raw, o.tax_type, float(o.tax_rate or 0), bool(o.price_inclusive),
+            float(o.discount_amount or 0))
+        o.subtotal, o.tax_amount, o.retenue_amount, o.total = subtotal, tax, retenue, total
+
     if body.status is not None:
         valid = ["draft","proforma_sent","confirmed","bl_sent","br_received","invoiced","delivered","cancelled"]
         if body.status not in valid:
             raise HTTPException(400, f"Invalid status: {body.status}")
         o.status = body.status
-    if body.apply_tva is not None:
-        subtotal = float(o.subtotal or 0)
-        o.tax_amount = round(subtotal * 0.1925, 2) if body.apply_tva else 0
-        o.total = subtotal + float(o.tax_amount) - float(o.discount_amount or 0)
     if body.notes is not None:
         o.notes = body.notes
     if body.delivery_address is not None:

@@ -131,6 +131,9 @@ class ServiceProjectCreate(BaseModel):
     end_date:        Optional[str]         = None
     technician:      Optional[str]         = None
     apply_tva:       bool                  = False
+    tax_type:        str                   = "none"   # none | tva | retenue
+    tax_rate:        float                 = 0         # percent
+    price_inclusive: bool                  = False     # entered prices are TTC
     notes:           Optional[str]         = None
     milestones:      List[MilestoneCreate] = []
 
@@ -146,6 +149,10 @@ class ServiceProjectUpdate(BaseModel):
     end_date:        Optional[str]                  = None
     technician:      Optional[str]                  = None
     apply_tva:       Optional[bool]                 = None
+    tax_type:        Optional[str]                  = None
+    tax_rate:        Optional[float]                = None
+    price_inclusive: Optional[bool]                 = None
+    discount_amount: Optional[Decimal]              = None
     notes:           Optional[str]                  = None
     cancel_reason:   Optional[str]                  = None
 
@@ -167,7 +174,11 @@ class ServiceProjectOut(BaseModel):
     subtotal:        Decimal
     discount_amount: Decimal
     tax_amount:      Decimal
+    retenue_amount:  Decimal = Decimal("0")
     total:           Decimal
+    tax_type:        str   = "none"
+    tax_rate:        Decimal = Decimal("0")
+    price_inclusive: bool  = False
 
     site_address: Optional[str]
     start_date:   Optional[datetime]

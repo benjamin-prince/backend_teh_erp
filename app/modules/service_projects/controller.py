@@ -66,14 +66,41 @@ def _unique_code(db: Session, raw: str) -> str:
 
 
 def _recalculate(project: ServiceProject) -> None:
-    subtotal = sum((m.line_total or m.total or Decimal("0")) for m in project.milestones)
-    project.subtotal = subtotal
-    use_tax = project.apply_tva or project.include_tax
-    if use_tax:
-        project.tax_amount = ((subtotal - project.discount_amount) * TAX_RATE).quantize(Decimal("0.01"))
+    """total = subtotal + TVA − retenue − discount. One tax type at a time.
+
+    tax_type: none | tva | retenue. tax_rate is a percent (e.g. 19.25).
+    price_inclusive (TVA only): entered prices are TTC → extract TVA from the base.
+    Legacy apply_tva/include_tax still imply TVA at 19.25% when tax_type is unset.
+    """
+    cents = Decimal("0.01")
+    raw = sum((m.line_total or m.total or Decimal("0")) for m in project.milestones)
+    disc = project.discount_amount or Decimal("0")
+
+    tax_type = (project.tax_type or "none").lower()
+    if tax_type == "none" and (project.apply_tva or project.include_tax):
+        tax_type, rate = "tva", TAX_RATE      # legacy fallback
     else:
+        rate = (Decimal(str(project.tax_rate or 0)) / Decimal("100"))
+
+    if tax_type == "tva":
+        if project.price_inclusive and rate:
+            project.subtotal = (raw / (1 + rate)).quantize(cents)
+            project.tax_amount = (raw - project.subtotal).quantize(cents)
+        else:
+            project.subtotal = Decimal(raw).quantize(cents)
+            project.tax_amount = (raw * rate).quantize(cents)
+        project.retenue_amount = Decimal("0")
+        project.total = (project.subtotal + project.tax_amount - disc).quantize(cents)
+    elif tax_type == "retenue":
+        project.subtotal = Decimal(raw).quantize(cents)
         project.tax_amount = Decimal("0")
-    project.total = (subtotal - project.discount_amount + project.tax_amount).quantize(Decimal("0.01"))
+        project.retenue_amount = (raw * rate).quantize(cents)
+        project.total = (project.subtotal - project.retenue_amount - disc).quantize(cents)
+    else:
+        project.subtotal = Decimal(raw).quantize(cents)
+        project.tax_amount = Decimal("0")
+        project.retenue_amount = Decimal("0")
+        project.total = (project.subtotal - disc).quantize(cents)
 
 
 def _milestone_line_total(m: ServiceMilestone) -> Decimal:
@@ -188,6 +215,9 @@ def create_project(db: Session, payload: ServiceProjectCreate) -> ServiceProject
         notes           = payload.notes,
         apply_tva       = payload.apply_tva,
         include_tax     = payload.apply_tva,   # keep legacy column in sync
+        tax_type        = payload.tax_type,
+        tax_rate        = Decimal(str(payload.tax_rate or 0)),
+        price_inclusive = payload.price_inclusive,
         discount_amount = Decimal("0"),
         start_date      = _parse_date(payload.start_date),
         end_date        = _parse_date(payload.end_date),
@@ -237,6 +267,8 @@ def update_project(
     # Keep legacy include_tax in sync with apply_tva
     if "apply_tva" in changes:
         project.include_tax = changes["apply_tva"]
+    # Recompute totals whenever the tax config or discount changes
+    if changes.keys() & {"apply_tva", "tax_type", "tax_rate", "price_inclusive", "discount_amount"}:
         _recalculate(project)
 
     # Stamp workflow timestamp when status advances
