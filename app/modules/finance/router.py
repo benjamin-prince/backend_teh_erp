@@ -358,46 +358,94 @@ def list_expenses(
     ).offset(skip).limit(limit).all()
 
 
+class OrderInvoiceGen(BaseModel):
+    percentage: Optional[float] = None   # 1..100 — share of the order to bill
+    amount: Optional[float] = None       # explicit amount to bill (acompte)
+
+
 @router.post("/orders/{order_id}/invoice", status_code=201)
 def generate_invoice_from_order(
     order_id: int,
+    body: Optional[OrderInvoiceGen] = None,
     db: Session = Depends(get_db),
     current_user=Depends(require_permission("finance:invoices")),
 ):
+    """Generate a (possibly partial / acompte) invoice for an order.
+
+    Like service projects: bills a percentage or amount, supports multiple
+    tranches until fully paid, and returns the current open (unpaid) invoice
+    instead of creating a duplicate.
+    """
     from app.modules.orders.models import Order as OrderModel
+    import json as _json
     o = db.query(OrderModel).filter_by(id=order_id, deleted_at=None).first()
     if not o:
         raise HTTPException(404, "Order not found")
-    existing = db.query(Invoice).filter_by(ref_model="order", ref_id=order_id, deleted_at=None).first()
-    if existing:
-        return existing
-    number = next_sequence(db, SequenceType.invoice_number)
-    import json as _json
+
+    pct = body.percentage if body else None
+    amt = body.amount if body else None
+
+    all_invs = db.query(Invoice).filter_by(ref_model="order", ref_id=order_id, deleted_at=None).all()
+    # One open tranche at a time — return it instead of duplicating
+    open_unpaid = next(
+        (i for i in sorted(all_invs, key=lambda x: x.id, reverse=True)
+         if i.status != "cancelled" and float(i.paid_amount or 0) == 0),
+        None,
+    )
+    if open_unpaid is not None:
+        return open_unpaid
+
+    order_total = float(o.total or 0)
+    total_paid = sum(float(i.paid_amount or 0) for i in all_invs)
+    remaining = max(order_total - total_paid, 0.0)
+    # Nothing left to bill — return the latest invoice instead of re-billing
+    if remaining <= 0.009 and all_invs:
+        return sorted(all_invs, key=lambda x: x.id, reverse=True)[0]
+
+    if amt is not None:
+        inv_total = min(float(amt), remaining if remaining > 0 else order_total)
+        factor = (inv_total / order_total) if order_total > 0 else 1.0
+    elif pct is not None:
+        factor = min(max(float(pct), 1.0), 100.0) / 100.0
+        inv_total = order_total * factor
+    else:
+        inv_total = remaining if remaining > 0 else order_total
+        factor = (inv_total / order_total) if order_total > 0 else 1.0
+    inv_total = round(inv_total, 2)
+    pct_display = round(factor * 100, 2)
+
     line_items = [
-        {
-            "description": item.description or "",
-            "quantity": float(item.quantity),
-            "unit_price": float(item.unit_price),
-            "total": float(item.line_total),
-        }
+        {"description": item.description or "", "quantity": float(item.quantity),
+         "unit_price": float(item.unit_price), "total": float(item.line_total)}
         for item in (o.items or [])
     ]
+    notes_parts = []
+    if pct_display < 99.99:
+        notes_parts.append(f"Facture partielle : {round(pct_display)}% du montant total de la commande.")
+    if total_paid > 0:
+        cur = o.currency or "XAF"
+        notes_parts.append(f"Déjà facturé et payé : {int(total_paid):,} {cur}".replace(",", " "))
+    if o.notes:
+        notes_parts.append(o.notes)
+    notes = "\n".join(notes_parts) or None
+
     inv = Invoice(
         company_id=current_user.company_id,
-        invoice_number=number,
+        invoice_number=next_sequence(db, SequenceType.invoice_number),
         invoice_type="sale",
         customer_id=o.customer_id,
         ref_model="order",
         ref_id=o.id,
-        subtotal=float(o.subtotal or 0),
-        tax_amount=float(o.tax_amount or 0),
-        retenue_amount=float(getattr(o, "retenue_amount", 0) or 0),
-        discount_amount=float(o.discount_amount or 0),
-        total=float(o.total or 0),
-        balance_due=float(o.total or 0),
+        subtotal=float(o.subtotal or 0),                       # FULL HT (acompte print shows complet)
+        tax_amount=round(float(o.tax_amount or 0) * factor, 2),
+        retenue_amount=round(float(getattr(o, "retenue_amount", 0) or 0) * factor, 2),
+        discount_amount=round(float(o.discount_amount or 0) * factor, 2),
+        total=inv_total,
+        balance_due=inv_total,
         tax_type=getattr(o, "tax_type", "none") or "none",
         tax_rate=float(getattr(o, "tax_rate", 0) or 0),
-        notes=o.notes,
+        advance_pct=(pct_display if pct_display < 99.99 else None),
+        notes=notes,
         line_items_json=_json.dumps(line_items),
         created_by=current_user.id,
     )
@@ -412,7 +460,8 @@ def get_invoice_by_order(
     db: Session = Depends(get_db),
     _=Depends(require_permission("finance:invoices")),
 ):
-    inv = db.query(Invoice).filter_by(ref_model="order", ref_id=order_id, deleted_at=None).first()
+    inv = (db.query(Invoice).filter_by(ref_model="order", ref_id=order_id, deleted_at=None)
+             .order_by(Invoice.id.desc()).first())
     if not inv:
         raise HTTPException(404, "No invoice for this order")
     return inv

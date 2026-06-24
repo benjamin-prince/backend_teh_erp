@@ -42,6 +42,9 @@ class Invoice(Base):
     # Tax status carried from the source order/project (none | tva | retenue)
     tax_type       = Column(String(20), nullable=False, default="none")
     tax_rate       = Column(Numeric(6, 3), default=0)
+    # Advance/partial (acompte) invoice: % of the source total this invoice bills.
+    # NULL or 100 = full invoice. subtotal stays the FULL HT for the acompte print.
+    advance_pct    = Column(Numeric(6, 2), nullable=True)
 
     currency       = Column(String(10), default="XAF")
     due_date       = Column(DateTime, nullable=True)
