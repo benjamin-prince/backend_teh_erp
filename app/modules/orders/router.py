@@ -265,6 +265,20 @@ def update_order(
             raw, o.tax_type, float(o.tax_rate or 0), bool(o.price_inclusive),
             float(o.discount_amount or 0))
         o.subtotal, o.tax_amount, o.retenue_amount, o.total = subtotal, tax, retenue, total
+        # Keep a still-draft, unpaid invoice in sync so its document reflects the tax
+        from app.modules.finance.models import Invoice
+        inv = (db.query(Invoice)
+                 .filter_by(ref_model="order", ref_id=o.id)
+                 .order_by(Invoice.id.desc()).first())
+        if inv and inv.status == "draft" and float(inv.paid_amount or 0) == 0:
+            inv.subtotal = subtotal
+            inv.tax_amount = tax
+            inv.retenue_amount = retenue
+            inv.discount_amount = o.discount_amount
+            inv.total = total
+            inv.balance_due = total
+            inv.tax_type = o.tax_type
+            inv.tax_rate = o.tax_rate
 
     if body.status is not None:
         valid = ["draft","proforma_sent","confirmed","bl_sent","br_received","invoiced","delivered","cancelled"]

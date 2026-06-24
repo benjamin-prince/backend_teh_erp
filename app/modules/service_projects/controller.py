@@ -270,6 +270,19 @@ def update_project(
     # Recompute totals whenever the tax config or discount changes
     if changes.keys() & {"apply_tva", "tax_type", "tax_rate", "price_inclusive", "discount_amount"}:
         _recalculate(project)
+        # Sync a still-draft, unpaid linked invoice so its document reflects the tax
+        if project.invoice_id:
+            from app.modules.finance.models import Invoice
+            inv = db.query(Invoice).filter_by(id=project.invoice_id).first()
+            if inv and inv.status == "draft" and (inv.paid_amount or Decimal("0")) == 0:
+                inv.subtotal        = project.subtotal
+                inv.tax_amount      = project.tax_amount
+                inv.retenue_amount  = project.retenue_amount
+                inv.discount_amount = project.discount_amount
+                inv.total           = project.total
+                inv.balance_due     = project.total
+                inv.tax_type        = project.tax_type or "none"
+                inv.tax_rate        = project.tax_rate or Decimal("0")
 
     # Stamp workflow timestamp when status advances
     if new_status and new_status in _TS:
