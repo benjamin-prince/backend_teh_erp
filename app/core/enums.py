@@ -433,6 +433,7 @@ class OrderStatus(str, Enum):
     bl_sent        = "bl_sent"
     br_received    = "br_received"
     invoiced       = "invoiced"
+    invoice_sent   = "invoice_sent"   # invoice sent, awaiting payment
     delivered      = "delivered"
     cancelled      = "cancelled"
 

@@ -296,7 +296,7 @@ def update_order(
             inv.tax_rate = o.tax_rate
 
     if body.status is not None:
-        valid = ["draft","proforma_sent","confirmed","bl_sent","br_received","invoiced","delivered","cancelled"]
+        valid = ["draft","proforma_sent","confirmed","bl_sent","br_received","invoiced","invoice_sent","delivered","cancelled"]
         if body.status not in valid:
             raise HTTPException(400, f"Invalid status: {body.status}")
         o.status = body.status
