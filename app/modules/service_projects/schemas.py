@@ -67,6 +67,7 @@ class MilestoneCreate(BaseModel):
     description:     Optional[str]  = None    # legacy; falls back to title
     quantity:        Decimal         = Decimal("1")
     unit_price:      Decimal         = Decimal("0")
+    serials:         Optional[str]   = None   # IMEI / SN / MAC, one per line
     sort_order:      int             = 0
 
     @model_validator(mode="after")
@@ -98,6 +99,7 @@ class MilestoneOut(BaseModel):
     quantity:           Decimal
     unit_price:         Decimal
     line_total:         Decimal        = Decimal("0")
+    serials:            Optional[str]  = None
     progress:           int
     sort_order:         int
     service_type:       Optional[ServiceTypeOut] = None

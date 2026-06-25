@@ -237,6 +237,7 @@ def create_project(db: Session, payload: ServiceProjectCreate) -> ServiceProject
             unit_price      = ms.unit_price,
             line_total      = lt,
             total           = lt,
+            serials         = ms.serials,
             sort_order      = ms.sort_order if ms.sort_order else i,
         )
         db.add(milestone)
@@ -360,6 +361,7 @@ def generate_invoice(db: Session, project_id: int,
             "description": m.title or m.description or "",
             "quantity":    float(m.quantity),
             "unit_price":  float(m.unit_price),
+            "serials":     getattr(m, "serials", None),
             "total":       float((m.line_total or Decimal("0")) * factor),
         }
         for m in project.milestones

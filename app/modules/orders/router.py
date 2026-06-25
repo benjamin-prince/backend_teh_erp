@@ -57,6 +57,7 @@ class OrderItemIn(BaseModel):
     description: str
     quantity: int
     unit_price: float
+    serials: Optional[str] = None   # IMEI / SN / MAC, one per line
 
 class OrderCreate(BaseModel):
     customer_id: int
@@ -117,6 +118,7 @@ def create_order(
             quantity=item.quantity,
             unit_price=item.unit_price,
             line_total=item.quantity * item.unit_price,
+            serials=item.serials,
         ))
     db.commit()
     db.refresh(order)
@@ -257,6 +259,7 @@ def update_order(
                 quantity=it.quantity,
                 unit_price=it.unit_price,
                 line_total=it.quantity * it.unit_price,
+                serials=it.serials,
             ))
         recompute = True
 

@@ -2,7 +2,7 @@
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -113,6 +113,32 @@ def get_invoice(
     inv = db.query(Invoice).filter_by(id=invoice_id, deleted_at=None).first()
     if not inv:
         raise HTTPException(404, "Invoice not found")
+    return inv
+
+
+class InvoiceSerialsBody(BaseModel):
+    serials: List[Optional[str]] = []   # one per line item, by position
+
+
+@router.patch("/invoices/{invoice_id}/serials")
+def update_invoice_serials(
+    invoice_id: int,
+    body: InvoiceSerialsBody,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("finance:invoices")),
+):
+    """Set the IMEI/SN/MAC identifiers on each invoice line item (by position)."""
+    import json as _json
+    inv = db.query(Invoice).filter_by(id=invoice_id, deleted_at=None).first()
+    if not inv:
+        raise HTTPException(404, "Invoice not found")
+    items = _json.loads(inv.line_items_json or "[]")
+    for i, s in enumerate(body.serials):
+        if i < len(items):
+            items[i]["serials"] = (s.strip() if s and s.strip() else None)
+    inv.line_items_json = _json.dumps(items)
+    db.commit()
+    db.refresh(inv)
     return inv
 
 
@@ -416,7 +442,8 @@ def generate_invoice_from_order(
 
     line_items = [
         {"description": item.description or "", "quantity": float(item.quantity),
-         "unit_price": float(item.unit_price), "total": float(item.line_total)}
+         "unit_price": float(item.unit_price), "total": float(item.line_total),
+         "serials": getattr(item, "serials", None)}
         for item in (o.items or [])
     ]
     notes_parts = []

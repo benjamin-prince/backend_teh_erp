@@ -133,6 +133,7 @@ class ServiceMilestone(Base):
     unit_price       = Column(Numeric(14, 2), default=0,  nullable=False)
     total            = Column(Numeric(14, 2), default=0,  nullable=False)   # legacy
     line_total       = Column(Numeric(14, 2), default=0,  nullable=False)   # NEW canonical
+    serials          = Column(Text, nullable=True)   # IMEI / SN / MAC, one per line
     progress         = Column(Integer, default=0,  nullable=False)
     sort_order       = Column(Integer, default=0,  nullable=False)
     created_at       = Column(DateTime, default=datetime.utcnow, nullable=False)

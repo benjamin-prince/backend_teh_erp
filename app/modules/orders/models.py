@@ -62,6 +62,7 @@ class OrderItem(Base):
     quantity   = Column(Integer, nullable=False)
     unit_price = Column(Numeric(14, 2), nullable=False)
     line_total = Column(Numeric(14, 2), nullable=False)
+    serials    = Column(Text, nullable=True)   # IMEI / SN / MAC, one per line
 
     order = relationship("Order", back_populates="items")
 
