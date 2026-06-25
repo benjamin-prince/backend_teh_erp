@@ -37,6 +37,10 @@ class Order(Base):
     deposit_amount = Column(Numeric(14, 2), nullable=True)
     deposit_paid  = Column(Boolean, default=False)
 
+    # Fulfilment track — independent of billing status & payment
+    delivered     = Column(Boolean, default=False, nullable=False)
+    delivered_at  = Column(DateTime, nullable=True)
+
     delivery_address = Column(Text, nullable=True)
     notes         = Column(Text, nullable=True)
     created_by    = Column(Integer, nullable=True)

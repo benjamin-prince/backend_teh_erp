@@ -153,6 +153,7 @@ class ServiceProjectUpdate(BaseModel):
     tax_rate:        Optional[float]                = None
     price_inclusive: Optional[bool]                 = None
     discount_amount: Optional[Decimal]              = None
+    delivered:       Optional[bool]                 = None
     notes:           Optional[str]                  = None
     cancel_reason:   Optional[str]                  = None
 
@@ -179,6 +180,8 @@ class ServiceProjectOut(BaseModel):
     tax_type:        str   = "none"
     tax_rate:        Decimal = Decimal("0")
     price_inclusive: bool  = False
+    delivered:       bool  = False
+    delivered_at:    Optional[datetime] = None
 
     site_address: Optional[str]
     start_date:   Optional[datetime]

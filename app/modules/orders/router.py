@@ -227,6 +227,7 @@ class OrderUpdate(BaseModel):
     tax_rate: Optional[float] = None          # percent
     price_inclusive: Optional[bool] = None
     discount_amount: Optional[float] = None
+    delivered: Optional[bool] = None           # independent fulfilment flag
     notes: Optional[str] = None
     delivery_address: Optional[str] = None
     items: Optional[List[OrderItemIn]] = None  # full replacement of line items
@@ -303,6 +304,9 @@ def update_order(
         if body.status not in valid:
             raise HTTPException(400, f"Invalid status: {body.status}")
         o.status = body.status
+    if body.delivered is not None:
+        o.delivered = body.delivered
+        o.delivered_at = datetime.utcnow() if body.delivered else None
     if body.notes is not None:
         o.notes = body.notes
     if body.delivery_address is not None:

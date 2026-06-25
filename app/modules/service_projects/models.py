@@ -89,6 +89,9 @@ class ServiceProject(Base):
     tax_type        = Column(String(20), nullable=False, default="none")  # none | tva | retenue
     tax_rate        = Column(Numeric(6, 3), default=0, nullable=False)     # percent, e.g. 19.250
     price_inclusive = Column(Boolean, default=False, nullable=False)       # entered prices are TTC
+    # Fulfilment track — independent of billing status & payment
+    delivered       = Column(Boolean, default=False, nullable=False)
+    delivered_at    = Column(DateTime, nullable=True)
 
     skip_br             = Column(Boolean, default=False, nullable=False)
     skip_br_reason      = Column(Text, nullable=True)

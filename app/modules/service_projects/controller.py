@@ -264,6 +264,9 @@ def update_project(
             v = _parse_date(v)
         setattr(project, k, v)
 
+    if "delivered" in changes:
+        project.delivered_at = datetime.utcnow() if changes["delivered"] else None
+
     # Keep legacy include_tax in sync with apply_tva
     if "apply_tva" in changes:
         project.include_tax = changes["apply_tva"]
