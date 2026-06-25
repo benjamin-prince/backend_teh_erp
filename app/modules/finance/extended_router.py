@@ -198,13 +198,32 @@ def list_income(
         elif period == "year":
             q = q.filter(func.extract("year", IncomeRecord.date) == now.year)
     records = q.order_by(IncomeRecord.date.desc()).offset(skip).limit(limit).all()
-    # Attach account name
+
+    # Resolve the underlying source type for income tied to an invoice
+    # (the invoice itself carries order / service_project / shipment / …).
+    from app.modules.finance.models import Invoice
+    inv_ids = [r.ref_id for r in records if r.ref_model == "invoice" and r.ref_id]
+    inv_src = {}
+    if inv_ids:
+        for inv in db.query(Invoice).filter(Invoice.id.in_(inv_ids)).all():
+            src = inv.ref_model or "invoice"
+            if src == "service_project":
+                src = "project"
+            inv_src[inv.id] = src
+
     for r in records:
         if r.money_account_id:
             acc = db.query(MoneyAccount).filter_by(id=r.money_account_id).first()
             r.__dict__['money_account_name'] = acc.name if acc else None
         else:
             r.__dict__['money_account_name'] = None
+        # Normalized source type for filtering (order | project | shipment | …)
+        if r.ref_model == "invoice" and r.ref_id in inv_src:
+            r.__dict__['source_model'] = inv_src[r.ref_id]
+        elif r.ref_model == "service_project":
+            r.__dict__['source_model'] = "project"
+        else:
+            r.__dict__['source_model'] = r.ref_model
     return records
 
 
