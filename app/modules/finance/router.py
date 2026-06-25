@@ -117,7 +117,8 @@ def get_invoice(
 
 
 class InvoiceSerialsBody(BaseModel):
-    serials: List[Optional[str]] = []   # one per line item, by position
+    serials: List[Optional[str]] = []        # one per line item, by position
+    descriptions: Optional[List[Optional[str]]] = None  # rename articles, by position
 
 
 @router.patch("/invoices/{invoice_id}/serials")
@@ -127,7 +128,8 @@ def update_invoice_serials(
     db: Session = Depends(get_db),
     current_user=Depends(require_permission("finance:invoices")),
 ):
-    """Set the IMEI/SN/MAC identifiers on each invoice line item (by position)."""
+    """Set IMEI/SN/MAC identifiers and (optionally) rename articles on each
+    invoice line item (by position) — editable at any stage."""
     import json as _json
     inv = db.query(Invoice).filter_by(id=invoice_id, deleted_at=None).first()
     if not inv:
@@ -136,6 +138,10 @@ def update_invoice_serials(
     for i, s in enumerate(body.serials):
         if i < len(items):
             items[i]["serials"] = (s.strip() if s and s.strip() else None)
+    if body.descriptions is not None:
+        for i, d in enumerate(body.descriptions):
+            if i < len(items) and d is not None and d.strip():
+                items[i]["description"] = d.strip()[:300]
     inv.line_items_json = _json.dumps(items)
     db.commit()
     db.refresh(inv)
