@@ -68,6 +68,10 @@ class OrderCreate(BaseModel):
     tax_rate: float = 0             # percent
     price_inclusive: bool = False   # entered unit prices already include TVA (TTC)
     discount_amount: float = 0
+    guarantee_value: Optional[int] = None
+    guarantee_unit: Optional[str] = None            # week | month | year
+    delivery_delay_value: Optional[int] = None
+    delivery_delay_unit: Optional[str] = None       # day | month
     delivery_address: Optional[str] = None
     notes: Optional[str] = None
 
@@ -104,6 +108,10 @@ def create_order(
         tax_type=body.tax_type,
         tax_rate=body.tax_rate,
         price_inclusive=body.price_inclusive,
+        guarantee_value=body.guarantee_value,
+        guarantee_unit=body.guarantee_unit,
+        delivery_delay_value=body.delivery_delay_value,
+        delivery_delay_unit=body.delivery_delay_unit,
         delivery_address=body.delivery_address,
         notes=body.notes,
         created_by=current_user.id,
@@ -230,6 +238,10 @@ class OrderUpdate(BaseModel):
     price_inclusive: Optional[bool] = None
     discount_amount: Optional[float] = None
     delivered: Optional[bool] = None           # independent fulfilment flag
+    guarantee_value: Optional[int] = None
+    guarantee_unit: Optional[str] = None
+    delivery_delay_value: Optional[int] = None
+    delivery_delay_unit: Optional[str] = None
     notes: Optional[str] = None
     delivery_address: Optional[str] = None
     items: Optional[List[OrderItemIn]] = None  # full replacement of line items
@@ -314,6 +326,17 @@ def update_order(
         o.notes = body.notes
     if body.delivery_address is not None:
         o.delivery_address = body.delivery_address
+    for f in ("guarantee_value", "guarantee_unit", "delivery_delay_value", "delivery_delay_unit"):
+        v = getattr(body, f)
+        if v is not None:
+            setattr(o, f, v or None)
+            # Keep the linked invoice's document terms in sync
+            from app.modules.finance.models import Invoice
+            inv2 = (db.query(Invoice)
+                      .filter_by(ref_model="order", ref_id=o.id)
+                      .order_by(Invoice.id.desc()).first())
+            if inv2 is not None:
+                setattr(inv2, f, v or None)
     o.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(o)

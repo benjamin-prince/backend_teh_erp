@@ -45,6 +45,11 @@ class Invoice(Base):
     # Advance/partial (acompte) invoice: % of the source total this invoice bills.
     # NULL or 100 = full invoice. subtotal stays the FULL HT for the acompte print.
     advance_pct    = Column(Numeric(6, 2), nullable=True)
+    # Document terms carried from the source order/project (shown on the invoice)
+    guarantee_value      = Column(Integer, nullable=True)
+    guarantee_unit       = Column(String(10), nullable=True)   # week | month | year
+    delivery_delay_value = Column(Integer, nullable=True)
+    delivery_delay_unit  = Column(String(10), nullable=True)   # day | month
 
     currency       = Column(String(10), default="XAF")
     due_date       = Column(DateTime, nullable=True)

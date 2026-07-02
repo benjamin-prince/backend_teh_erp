@@ -155,6 +155,10 @@ class InvoiceUpdate(BaseModel):
     currency:         Optional[str]   = None
     line_items_json:  Optional[str]   = None
     notes:            Optional[str]   = None
+    guarantee_value:      Optional[int] = None
+    guarantee_unit:       Optional[str] = None
+    delivery_delay_value: Optional[int] = None
+    delivery_delay_unit:  Optional[str] = None
 
 @router.patch("/invoices/{invoice_id}")
 def update_invoice(
@@ -168,19 +172,23 @@ def update_invoice(
         raise HTTPException(404, "Invoice not found")
     if inv.status == "cancelled":
         raise HTTPException(400, "Cannot update a cancelled invoice")
-    for k, v in body.model_dump(exclude_none=True).items():
+    payload = body.model_dump(exclude_none=True)
+    for k, v in payload.items():
         setattr(inv, k, v)
-    # Recalculate status based on actual paid vs total
-    paid = float(inv.paid_amount or 0)
-    total = float(inv.total or 0)
-    inv.balance_due = max(total - paid, 0)
-    if total > 0:
-        if paid >= total:
-            inv.status = InvoiceStatus.paid
-        elif paid > 0:
-            inv.status = InvoiceStatus.partial
-        else:
-            inv.status = InvoiceStatus.draft
+    # Recalculate status only when a financial field changed — editing document
+    # terms/notes must not clobber a sent/awaiting-payment status.
+    financial = {"subtotal", "total", "balance_due", "line_items_json"}
+    if financial & payload.keys():
+        paid = float(inv.paid_amount or 0)
+        total = float(inv.total or 0)
+        inv.balance_due = max(total - paid, 0)
+        if total > 0:
+            if paid >= total:
+                inv.status = InvoiceStatus.paid
+            elif paid > 0:
+                inv.status = InvoiceStatus.partial
+            else:
+                inv.status = InvoiceStatus.draft
     from datetime import datetime as _dt
     inv.updated_at = _dt.utcnow()
     db.commit()
@@ -478,6 +486,10 @@ def generate_invoice_from_order(
         tax_type=getattr(o, "tax_type", "none") or "none",
         tax_rate=float(getattr(o, "tax_rate", 0) or 0),
         advance_pct=(pct_display if pct_display < 99.99 else None),
+        guarantee_value=getattr(o, "guarantee_value", None),
+        guarantee_unit=getattr(o, "guarantee_unit", None),
+        delivery_delay_value=getattr(o, "delivery_delay_value", None),
+        delivery_delay_unit=getattr(o, "delivery_delay_unit", None),
         notes=notes,
         line_items_json=_json.dumps(line_items),
         created_by=current_user.id,

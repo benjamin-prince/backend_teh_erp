@@ -92,6 +92,11 @@ class ServiceProject(Base):
     # Fulfilment track — independent of billing status & payment
     delivered       = Column(Boolean, default=False, nullable=False)
     delivered_at    = Column(DateTime, nullable=True)
+    # Document terms (shown on all documents)
+    guarantee_value      = Column(Integer, nullable=True)
+    guarantee_unit       = Column(String(10), nullable=True)   # week | month | year
+    delivery_delay_value = Column(Integer, nullable=True)
+    delivery_delay_unit  = Column(String(10), nullable=True)   # day | month
 
     skip_br             = Column(Boolean, default=False, nullable=False)
     skip_br_reason      = Column(Text, nullable=True)

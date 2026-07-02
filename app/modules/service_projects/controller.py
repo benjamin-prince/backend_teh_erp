@@ -218,6 +218,10 @@ def create_project(db: Session, payload: ServiceProjectCreate) -> ServiceProject
         tax_type        = payload.tax_type,
         tax_rate        = Decimal(str(payload.tax_rate or 0)),
         price_inclusive = payload.price_inclusive,
+        guarantee_value      = payload.guarantee_value,
+        guarantee_unit       = payload.guarantee_unit or None,
+        delivery_delay_value = payload.delivery_delay_value,
+        delivery_delay_unit  = payload.delivery_delay_unit or None,
         discount_amount = Decimal("0"),
         start_date      = _parse_date(payload.start_date),
         end_date        = _parse_date(payload.end_date),
@@ -267,6 +271,15 @@ def update_project(
 
     if "delivered" in changes:
         project.delivered_at = datetime.utcnow() if changes["delivered"] else None
+
+    # Keep the linked invoice's document terms in sync
+    term_keys = {"guarantee_value", "guarantee_unit", "delivery_delay_value", "delivery_delay_unit"}
+    if project.invoice_id and (changes.keys() & term_keys):
+        from app.modules.finance.models import Invoice
+        _inv = db.query(Invoice).filter_by(id=project.invoice_id).first()
+        if _inv is not None:
+            for k in term_keys & changes.keys():
+                setattr(_inv, k, changes[k] or None)
 
     # Keep legacy include_tax in sync with apply_tva
     if "apply_tva" in changes:
@@ -395,6 +408,10 @@ def generate_invoice(db: Session, project_id: int,
         retenue_amount  = retenue,
         tax_type        = project.tax_type or "none",
         tax_rate        = project.tax_rate or Decimal("0"),
+        guarantee_value      = project.guarantee_value,
+        guarantee_unit       = project.guarantee_unit,
+        delivery_delay_value = project.delivery_delay_value,
+        delivery_delay_unit  = project.delivery_delay_unit,
         total           = inv_total,
         paid_amount     = Decimal("0"),
         balance_due     = inv_total,

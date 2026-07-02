@@ -136,6 +136,10 @@ class ServiceProjectCreate(BaseModel):
     tax_type:        str                   = "none"   # none | tva | retenue
     tax_rate:        float                 = 0         # percent
     price_inclusive: bool                  = False     # entered prices are TTC
+    guarantee_value:      Optional[int]    = None
+    guarantee_unit:       Optional[str]    = None      # week | month | year
+    delivery_delay_value: Optional[int]    = None
+    delivery_delay_unit:  Optional[str]    = None      # day | month
     notes:           Optional[str]         = None
     milestones:      List[MilestoneCreate] = []
 
@@ -156,6 +160,10 @@ class ServiceProjectUpdate(BaseModel):
     price_inclusive: Optional[bool]                 = None
     discount_amount: Optional[Decimal]              = None
     delivered:       Optional[bool]                 = None
+    guarantee_value:      Optional[int]             = None
+    guarantee_unit:       Optional[str]             = None
+    delivery_delay_value: Optional[int]             = None
+    delivery_delay_unit:  Optional[str]             = None
     notes:           Optional[str]                  = None
     cancel_reason:   Optional[str]                  = None
 
@@ -184,6 +192,10 @@ class ServiceProjectOut(BaseModel):
     price_inclusive: bool  = False
     delivered:       bool  = False
     delivered_at:    Optional[datetime] = None
+    guarantee_value:      Optional[int] = None
+    guarantee_unit:       Optional[str] = None
+    delivery_delay_value: Optional[int] = None
+    delivery_delay_unit:  Optional[str] = None
 
     site_address: Optional[str]
     start_date:   Optional[datetime]
