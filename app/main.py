@@ -63,6 +63,9 @@ from app.modules.insurance.models import (  # noqa: F401
     InsurancePlan, InsurancePolicy, InsuranceClaim
 )
 from app.modules.finance.extended_models import Location, MoneyAccount, IncomeRecord, FinanceExpense, Receivable, BudgetLine
+from app.modules.autopark.models import (  # noqa: F401
+    Vehicle, FuelLog, VehicleMaintenance, VehicleDocument, VehicleAssignment
+)
 
 from app.modules.companies.router import router as companies_router
 from app.modules.users.router import auth_router, protected_auth_router, users_router, roles_router
@@ -89,6 +92,7 @@ from app.modules.stock.serial_router import router as serial_router
 from app.modules.stock.category_router import router as category_router
 from app.modules.stock.shop_payment_router import router as shop_payment_router
 from app.modules.stock.shop_auth_router import router as shop_auth_router
+from app.modules.autopark.router import router as autopark_router
 
 logger = logging.getLogger("tehtek")
 
@@ -212,4 +216,5 @@ app.include_router(shop_router)         # public — no auth
 app.include_router(shop_payment_router) # public — checkout & payment webhooks
 app.include_router(shop_auth_router)    # public — customer portal auth
 app.include_router(serial_router)       # traceability — auth via router dependency
+app.include_router(autopark_router)     # fleet management — auth via router dependency
 app.include_router(category_router)     # category taxonomy — authenticated
