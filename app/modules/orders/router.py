@@ -232,6 +232,7 @@ def resolve_exception(
 
 class OrderUpdate(BaseModel):
     status: Optional[str] = None
+    customer_id: Optional[int] = None
     apply_tva: Optional[bool] = None          # legacy toggle → maps to tax_type
     tax_type: Optional[str] = None            # none | tva | retenue
     tax_rate: Optional[float] = None          # percent
@@ -258,6 +259,9 @@ def update_order(
     if not o:
         raise HTTPException(404, "Order not found")
     recompute = False
+
+    if body.customer_id is not None:
+        o.customer_id = body.customer_id
 
     if body.items is not None:
         if len(body.items) == 0:
