@@ -299,11 +299,20 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
     from app.modules.service_projects.models import ServiceProject as SP3
     for pr3 in db.query(SP3).filter(
         SP3.customer_id == customer_id,
-        SP3.invoice_id.is_(None),
         SP3.status.notin_(["cancelled", "delivered"]),
     ).all():
-        cur = pr3.currency or "XAF"
-        confirmed[cur] = confirmed.get(cur, 0.0) + float(pr3.total or 0)
+        invoiced = sum(
+            float(iv.total or 0)
+            for iv in db.query(Invoice).filter(
+                Invoice.ref_model == "service_project",
+                Invoice.ref_id == pr3.id,
+                Invoice.status.notin_(["cancelled"]),
+            ).all()
+        )
+        rem = float(pr3.total or 0) - invoiced
+        if rem > 0:
+            cur = pr3.currency or "XAF"
+            confirmed[cur] = confirmed.get(cur, 0.0) + rem
     c.awaiting_by_currency = {k: round(v, 2) for k, v in awaiting.items() if v > 0}
     c.confirmed_by_currency = {k: round(v, 2) for k, v in confirmed.items() if v > 0}
 
@@ -356,10 +365,19 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
     from app.modules.service_projects.models import ServiceProject as SP5
     for p5 in db.query(SP5).filter(
         SP5.customer_id == customer_id,
-        SP5.invoice_id.is_(None),
         SP5.status.notin_(["cancelled", "delivered"]),
     ).all():
-        _add_src("service_project", p5.reference, p5.currency or "XAF", float(p5.total or 0), p5.id, "confirmed")
+        invoiced5 = sum(
+            float(iv.total or 0)
+            for iv in db.query(Invoice).filter(
+                Invoice.ref_model == "service_project",
+                Invoice.ref_id == p5.id,
+                Invoice.status.notin_(["cancelled"]),
+            ).all()
+        )
+        rem5 = float(p5.total or 0) - invoiced5
+        if rem5 > 0:
+            _add_src("service_project", p5.reference, p5.currency or "XAF", rem5, p5.id, "confirmed")
     c.payment_sources = list(sources.values())
 
     c.outstanding_by_currency = out_cur
