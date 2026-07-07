@@ -348,6 +348,8 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
             if o2:
                 dlv = bool(o2.delivered)
                 label = o2.order_number
+            else:
+                label = f"{i.invoice_number} (commande supprimée)"
         elif i.ref_model == "service_project" and i.ref_id:
             from app.modules.service_projects.models import ServiceProject as SP4
             p4 = db.query(SP4).filter_by(id=i.ref_id).first()
