@@ -57,6 +57,7 @@ class CustomerOut(BaseModel):
     pending_by_currency: dict = {}
     awaiting_by_currency: dict = {}          # livré / terminé, en attente de paiement
     confirmed_by_currency: dict = {}         # confirmé mais pas encore livré
+    payment_sources: list = []               # ventilation par objet source
 
     first_name: str
     last_name: str

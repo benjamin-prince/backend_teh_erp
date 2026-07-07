@@ -301,6 +301,55 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
     c.awaiting_by_currency = {k: round(v, 2) for k, v in awaiting.items() if v > 0}
     c.confirmed_by_currency = {k: round(v, 2) for k, v in confirmed.items() if v > 0}
 
+    # Ventilation par objet : d'où vient chaque paiement attendu
+    sources: dict = {}
+    def _add_src(kind, label, cur, amt):
+        if amt <= 0:
+            return
+        g = sources.setdefault(kind, {"kind": kind, "count": 0, "by_currency": {}, "items": []})
+        g["count"] += 1
+        g["by_currency"][cur] = round(g["by_currency"].get(cur, 0.0) + amt, 2)
+        if len(g["items"]) < 10:
+            g["items"].append({"label": label, "amount": round(amt, 2), "currency": cur})
+    from app.modules.cargo.models import Shipment
+    for i in db.query(Invoice).filter(
+        Invoice.customer_id == customer_id,
+        Invoice.status.notin_(["paid", "cancelled"]),
+    ).all():
+        amt = float(i.balance_due or 0)
+        cur = getattr(i, "currency", None) or "XAF"
+        label = i.invoice_number
+        kind = i.ref_model or "facture"
+        if i.ref_model == "shipment" and i.ref_id:
+            sh = db.query(Shipment).filter_by(id=i.ref_id).first()
+            if sh and sh.tracking_number:
+                label = sh.tracking_number
+        elif i.ref_model == "order" and i.ref_id:
+            o2 = db.query(Order).filter_by(id=i.ref_id).first()
+            if o2:
+                label = o2.order_number
+        elif i.ref_model == "service_project" and i.ref_id:
+            from app.modules.service_projects.models import ServiceProject as SP4
+            p4 = db.query(SP4).filter_by(id=i.ref_id).first()
+            if p4:
+                label = p4.reference
+        _add_src(kind, label, cur, amt)
+    for r in db.query(Receivable).filter(
+        Receivable.client_id == customer_id,
+        Receivable.invoice_number.is_(None),
+        Receivable.status.notin_(["collected", "written_off"]),
+    ).all():
+        _add_src("receivable", r.receivable_number or r.ref_label, r.currency or "XAF",
+                 float(r.balance_due or 0))
+    from app.modules.service_projects.models import ServiceProject as SP5
+    for p5 in db.query(SP5).filter(
+        SP5.customer_id == customer_id,
+        SP5.invoice_id.is_(None),
+        SP5.status.notin_(["cancelled", "delivered"]),
+    ).all():
+        _add_src("service_project", p5.reference, p5.currency or "XAF", float(p5.total or 0))
+    c.payment_sources = list(sources.values())
+
     c.outstanding_by_currency = out_cur
     c.outstanding_balance = out_cur.get("XAF", 0.0)
     # Committed but not yet invoiced: active projects, shown as a separate line.
