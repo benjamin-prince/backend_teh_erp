@@ -240,6 +240,26 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
     c = controller.get_customer(db, customer_id)
     if not c:
         raise HTTPException(404, "Customer not found")
+    # Live outstanding: unpaid invoices + manual receivables (those without an
+    # invoice_number, to avoid double counting invoice-mirrored receivables).
+    from app.modules.finance.models import Invoice
+    from app.modules.finance.extended_models import Receivable
+    inv_out = sum(
+        float(i.balance_due or 0)
+        for i in db.query(Invoice).filter(
+            Invoice.customer_id == customer_id,
+            Invoice.status.notin_(["paid", "cancelled"]),
+        ).all()
+    )
+    rcv_out = sum(
+        float(r.balance_due or 0)
+        for r in db.query(Receivable).filter(
+            Receivable.client_id == customer_id,
+            Receivable.invoice_number.is_(None),
+            Receivable.status.notin_(["collected", "written_off"]),
+        ).all()
+    )
+    c.outstanding_balance = round(inv_out + rcv_out, 2)
     return c
 
 @router.patch("/customers/{customer_id}", response_model=schemas.CustomerOut)
