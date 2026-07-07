@@ -52,6 +52,7 @@ class BlacklistRequest(BaseModel):
 class CustomerOut(BaseModel):
     id: int
     customer_code: str
+    pending_projects_total: float = 0.0  # uninvoiced active projects (computed)
 
     first_name: str
     last_name: str

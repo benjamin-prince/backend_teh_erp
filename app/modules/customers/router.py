@@ -260,6 +260,16 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
         ).all()
     )
     c.outstanding_balance = round(inv_out + rcv_out, 2)
+    # Committed but not yet invoiced: active projects, shown as a separate line.
+    from app.modules.service_projects.models import ServiceProject
+    c.pending_projects_total = round(sum(
+        float(pr.total or 0)
+        for pr in db.query(ServiceProject).filter(
+            ServiceProject.customer_id == customer_id,
+            ServiceProject.invoice_id.is_(None),
+            ServiceProject.status.notin_(["cancelled", "delivered"]),
+        ).all()
+    ), 2)
     return c
 
 @router.patch("/customers/{customer_id}", response_model=schemas.CustomerOut)
