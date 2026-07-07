@@ -55,6 +55,8 @@ class CustomerOut(BaseModel):
     pending_projects_total: float = 0.0  # uninvoiced active projects (computed)
     outstanding_by_currency: dict = {}       # {"XAF": 1200000, "USD": 2500}
     pending_by_currency: dict = {}
+    awaiting_by_currency: dict = {}          # livré / terminé, en attente de paiement
+    confirmed_by_currency: dict = {}         # confirmé mais pas encore livré
 
     first_name: str
     last_name: str

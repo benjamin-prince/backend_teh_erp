@@ -259,6 +259,48 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
         cur = r.currency or "XAF"
         out_cur[cur] = out_cur.get(cur, 0.0) + float(r.balance_due or 0)
     out_cur = {k: round(v, 2) for k, v in out_cur.items() if v > 0}
+    # Split: livré-en-attente vs confirmé-non-livré (via the invoice's source doc)
+    from app.modules.orders.models import Order
+    awaiting: dict = {}
+    confirmed: dict = {}
+    for i in db.query(Invoice).filter(
+        Invoice.customer_id == customer_id,
+        Invoice.status.notin_(["paid", "cancelled"]),
+    ).all():
+        cur = getattr(i, "currency", None) or "XAF"
+        amt = float(i.balance_due or 0)
+        if amt <= 0:
+            continue
+        delivered = True
+        if i.ref_model == "order" and i.ref_id:
+            o = db.query(Order).filter_by(id=i.ref_id).first()
+            delivered = bool(o.delivered) if o else True
+        elif i.ref_model == "service_project" and i.ref_id:
+            from app.modules.service_projects.models import ServiceProject as SP2
+            pr2 = db.query(SP2).filter_by(id=i.ref_id).first()
+            delivered = bool(pr2.delivered) if pr2 else True
+        bucket = awaiting if delivered else confirmed
+        bucket[cur] = bucket.get(cur, 0.0) + amt
+    for r in db.query(Receivable).filter(
+        Receivable.client_id == customer_id,
+        Receivable.invoice_number.is_(None),
+        Receivable.status.notin_(["collected", "written_off"]),
+    ).all():
+        amt = float(r.balance_due or 0)
+        if amt > 0:
+            cur = r.currency or "XAF"
+            awaiting[cur] = awaiting.get(cur, 0.0) + amt
+    from app.modules.service_projects.models import ServiceProject as SP3
+    for pr3 in db.query(SP3).filter(
+        SP3.customer_id == customer_id,
+        SP3.invoice_id.is_(None),
+        SP3.status.notin_(["cancelled", "delivered"]),
+    ).all():
+        cur = pr3.currency or "XAF"
+        confirmed[cur] = confirmed.get(cur, 0.0) + float(pr3.total or 0)
+    c.awaiting_by_currency = {k: round(v, 2) for k, v in awaiting.items() if v > 0}
+    c.confirmed_by_currency = {k: round(v, 2) for k, v in confirmed.items() if v > 0}
+
     c.outstanding_by_currency = out_cur
     c.outstanding_balance = out_cur.get("XAF", 0.0)
     # Committed but not yet invoiced: active projects, shown as a separate line.
