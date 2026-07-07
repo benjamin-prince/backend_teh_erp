@@ -309,10 +309,11 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
 
     # Ventilation par objet : d'où vient chaque paiement attendu
     sources: dict = {}
-    def _add_src(kind, label, cur, amt, ref_id=None):
+    def _add_src(kind, label, cur, amt, ref_id=None, status="awaiting"):
         if amt <= 0:
             return
-        g = sources.setdefault(kind, {"kind": kind, "count": 0, "by_currency": {}, "items": []})
+        key = f"{kind}:{status}"
+        g = sources.setdefault(key, {"kind": kind, "status": status, "count": 0, "by_currency": {}, "items": []})
         g["count"] += 1
         g["by_currency"][cur] = round(g["by_currency"].get(cur, 0.0) + amt, 2)
         if len(g["items"]) < 10:
@@ -326,20 +327,25 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
         cur = getattr(i, "currency", None) or "XAF"
         label = i.invoice_number
         kind = i.ref_model or "facture"
+        dlv = True
         if i.ref_model == "shipment" and i.ref_id:
             sh = db.query(Shipment).filter_by(id=i.ref_id).first()
-            if sh and sh.tracking_number:
-                label = sh.tracking_number
+            if sh:
+                dlv = sh.status == "delivered"
+                if sh.tracking_number:
+                    label = sh.tracking_number
         elif i.ref_model == "order" and i.ref_id:
             o2 = db.query(Order).filter_by(id=i.ref_id).first()
             if o2:
+                dlv = bool(o2.delivered)
                 label = o2.order_number
         elif i.ref_model == "service_project" and i.ref_id:
             from app.modules.service_projects.models import ServiceProject as SP4
             p4 = db.query(SP4).filter_by(id=i.ref_id).first()
             if p4:
+                dlv = bool(p4.delivered)
                 label = p4.reference
-        _add_src(kind, label, cur, amt, i.ref_id)
+        _add_src(kind, label, cur, amt, i.ref_id, "awaiting" if dlv else "confirmed")
     for r in db.query(Receivable).filter(
         Receivable.client_id == customer_id,
         Receivable.invoice_number.is_(None),
@@ -353,7 +359,7 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
         SP5.invoice_id.is_(None),
         SP5.status.notin_(["cancelled", "delivered"]),
     ).all():
-        _add_src("service_project", p5.reference, p5.currency or "XAF", float(p5.total or 0), p5.id)
+        _add_src("service_project", p5.reference, p5.currency or "XAF", float(p5.total or 0), p5.id, "confirmed")
     c.payment_sources = list(sources.values())
 
     c.outstanding_by_currency = out_cur
