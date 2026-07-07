@@ -244,32 +244,36 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
     # invoice_number, to avoid double counting invoice-mirrored receivables).
     from app.modules.finance.models import Invoice
     from app.modules.finance.extended_models import Receivable
-    inv_out = sum(
-        float(i.balance_due or 0)
-        for i in db.query(Invoice).filter(
-            Invoice.customer_id == customer_id,
-            Invoice.status.notin_(["paid", "cancelled"]),
-        ).all()
-    )
-    rcv_out = sum(
-        float(r.balance_due or 0)
-        for r in db.query(Receivable).filter(
-            Receivable.client_id == customer_id,
-            Receivable.invoice_number.is_(None),
-            Receivable.status.notin_(["collected", "written_off"]),
-        ).all()
-    )
-    c.outstanding_balance = round(inv_out + rcv_out, 2)
+    out_cur: dict = {}
+    for i in db.query(Invoice).filter(
+        Invoice.customer_id == customer_id,
+        Invoice.status.notin_(["paid", "cancelled"]),
+    ).all():
+        cur = getattr(i, "currency", None) or "XAF"
+        out_cur[cur] = out_cur.get(cur, 0.0) + float(i.balance_due or 0)
+    for r in db.query(Receivable).filter(
+        Receivable.client_id == customer_id,
+        Receivable.invoice_number.is_(None),
+        Receivable.status.notin_(["collected", "written_off"]),
+    ).all():
+        cur = r.currency or "XAF"
+        out_cur[cur] = out_cur.get(cur, 0.0) + float(r.balance_due or 0)
+    out_cur = {k: round(v, 2) for k, v in out_cur.items() if v > 0}
+    c.outstanding_by_currency = out_cur
+    c.outstanding_balance = out_cur.get("XAF", 0.0)
     # Committed but not yet invoiced: active projects, shown as a separate line.
     from app.modules.service_projects.models import ServiceProject
-    c.pending_projects_total = round(sum(
-        float(pr.total or 0)
-        for pr in db.query(ServiceProject).filter(
-            ServiceProject.customer_id == customer_id,
-            ServiceProject.invoice_id.is_(None),
-            ServiceProject.status.notin_(["cancelled", "delivered"]),
-        ).all()
-    ), 2)
+    pend_cur: dict = {}
+    for pr in db.query(ServiceProject).filter(
+        ServiceProject.customer_id == customer_id,
+        ServiceProject.invoice_id.is_(None),
+        ServiceProject.status.notin_(["cancelled", "delivered"]),
+    ).all():
+        cur = pr.currency or "XAF"
+        pend_cur[cur] = pend_cur.get(cur, 0.0) + float(pr.total or 0)
+    pend_cur = {k: round(v, 2) for k, v in pend_cur.items() if v > 0}
+    c.pending_by_currency = pend_cur
+    c.pending_projects_total = pend_cur.get("XAF", 0.0)
     return c
 
 @router.patch("/customers/{customer_id}", response_model=schemas.CustomerOut)
