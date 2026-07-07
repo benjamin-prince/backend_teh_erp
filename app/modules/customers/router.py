@@ -247,10 +247,13 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
     out_cur: dict = {}
     for i in db.query(Invoice).filter(
         Invoice.customer_id == customer_id,
-        Invoice.status.notin_(["paid", "cancelled"]),
+        Invoice.status.notin_(["cancelled"]),
     ).all():
+        amt0 = float(i.balance_due or 0)
+        if amt0 <= 0:
+            continue
         cur = getattr(i, "currency", None) or "XAF"
-        out_cur[cur] = out_cur.get(cur, 0.0) + float(i.balance_due or 0)
+        out_cur[cur] = out_cur.get(cur, 0.0) + amt0
     for r in db.query(Receivable).filter(
         Receivable.client_id == customer_id,
         Receivable.invoice_number.is_(None),
@@ -265,14 +268,17 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
     confirmed: dict = {}
     for i in db.query(Invoice).filter(
         Invoice.customer_id == customer_id,
-        Invoice.status.notin_(["paid", "cancelled"]),
+        Invoice.status.notin_(["cancelled"]),
     ).all():
         cur = getattr(i, "currency", None) or "XAF"
         amt = float(i.balance_due or 0)
         if amt <= 0:
             continue
         delivered = True
-        if i.ref_model == "order" and i.ref_id:
+        if i.ref_model == "shipment" and i.ref_id:
+            sh0 = db.query(__import__("app.modules.cargo.models", fromlist=["Shipment"]).Shipment).filter_by(id=i.ref_id).first()
+            delivered = bool(sh0 and sh0.status == "delivered")
+        elif i.ref_model == "order" and i.ref_id:
             o = db.query(Order).filter_by(id=i.ref_id).first()
             delivered = bool(o.delivered) if o else True
         elif i.ref_model == "service_project" and i.ref_id:
@@ -314,7 +320,7 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(requ
     from app.modules.cargo.models import Shipment
     for i in db.query(Invoice).filter(
         Invoice.customer_id == customer_id,
-        Invoice.status.notin_(["paid", "cancelled"]),
+        Invoice.status.notin_(["cancelled"]),
     ).all():
         amt = float(i.balance_due or 0)
         cur = getattr(i, "currency", None) or "XAF"
