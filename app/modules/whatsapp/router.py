@@ -305,6 +305,7 @@ def list_leads(status: str | None = None, db: Session = Depends(get_db)):
             "cargo_type": l.cargo_type,
             "weight_or_dimensions": l.weight_or_dimensions,
             "preferred_pickup_date": l.preferred_pickup_date,
+            "pickup_readiness": l.pickup_readiness,
             "notes": l.notes,
             "status": l.status,
             "created_at": l.created_at,

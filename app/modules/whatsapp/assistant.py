@@ -61,9 +61,10 @@ Keep the same language for the whole conversation unless the customer switches.
 # Your job
 1. Answer questions about TehCargo services.
 2. Collect quote/pickup requests. Gather progressively: name, pickup address, destination,
-   cargo type, weight or dimensions, preferred pickup date. When you have at least the
-   destination and cargo type (more is better), call create_lead. Tell the customer a team
-   member will follow up with a quote.
+   cargo type, weight or dimensions, preferred pickup date. Before saving anything, you MUST
+   always ask: "Is your shipment ready for pickup now?" — and if it is not, ask when it will
+   be ready. Only once you have that answer AND at least the destination and cargo type,
+   call create_lead. Tell the customer a team member will follow up with a quote.
 3. Escalate to a human with escalate_to_human when: the customer asks for a human, is upset,
    has a complaint, asks something outside your knowledge, or negotiates prices.
 
@@ -78,8 +79,9 @@ TOOLS = [
         "name": "create_lead",
         "description": (
             "Save the customer's shipping request as a lead for the TehCargo team. "
-            "Call this once you know at least the destination and cargo type. "
-            "Include every detail the customer has given so far."
+            "Call this ONLY after the customer has answered whether the shipment is "
+            "ready for pickup (and if not, when it will be), and you know at least "
+            "the destination and cargo type. Include every detail given so far."
         ),
         "input_schema": {
             "type": "object",
@@ -91,10 +93,18 @@ TOOLS = [
                 "cargo_type": {"type": "string", "description": "e.g. boxes, barrels, vehicle, documents"},
                 "weight_or_dimensions": {"type": "string", "description": "Approximate weight or dimensions"},
                 "preferred_pickup_date": {"type": "string", "description": "Customer's preferred date, as stated"},
+                "pickup_readiness": {
+                    "type": "string",
+                    "description": (
+                        "Whether the shipment is ready for pickup NOW, exactly as the customer "
+                        "answered. If not ready, when it will be — e.g. 'ready now', "
+                        "'ready next Tuesday', 'not ready, date unknown'."
+                    ),
+                },
                 "notes": {"type": "string", "description": "Any other useful detail"},
                 "language": {"type": "string", "enum": ["fr", "en"], "description": "Conversation language"},
             },
-            "required": ["destination", "cargo_type"],
+            "required": ["destination", "cargo_type", "pickup_readiness"],
         },
     },
     {
@@ -136,6 +146,7 @@ def _execute_tool(db: Session, conv: WhatsAppConversation, name: str, tool_input
             cargo_type=tool_input.get("cargo_type"),
             weight_or_dimensions=tool_input.get("weight_or_dimensions"),
             preferred_pickup_date=tool_input.get("preferred_pickup_date"),
+            pickup_readiness=tool_input.get("pickup_readiness"),
             notes=tool_input.get("notes"),
         )
         if tool_input.get("language") in ("fr", "en"):
@@ -150,6 +161,7 @@ def _execute_tool(db: Session, conv: WhatsAppConversation, name: str, tool_input
             f"Pickup: {lead.pickup_address or '—'}\n"
             f"Destination: {lead.destination or '—'}\n"
             f"Cargo: {lead.cargo_type or '—'} ({lead.weight_or_dimensions or 'poids ?'})\n"
+            f"✅ Prêt au ramassage: {lead.pickup_readiness or '—'}\n"
             f"Date souhaitée: {lead.preferred_pickup_date or '—'}\n"
             f"Notes: {lead.notes or '—'}"
         )
