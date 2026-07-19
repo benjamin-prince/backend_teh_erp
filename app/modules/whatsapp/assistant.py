@@ -61,19 +61,27 @@ SEA (Baltimore → Douala, 18-25 days):
 - U-Haul Grand Wardrobe (24×24×48", 16 cu ft): $400 one / $350 each for 2+  ← most popular
 - Oversized items (furniture, appliances): $22 per cubic foot, minimum $60
 - Bulk: first CBM $780, each additional CBM $660
-AIR (Douala & Yaoundé, 3-7 days): $20/kg flat (minimum 10 kg) · airway bill fee $25
-VEHICLES (RoRo Baltimore → Douala): sedan $2,400 · SUV/pickup/van $3,000 ·
-exclusive 20ft container (vehicle + goods) $5,200 · mandatory BESC fee $275
-PICKUP (DC/MD/VA): FREE for orders $300+ within 25 miles · under $300: $50 · 25-50 miles: +$35.
+AIR (Douala & Yaoundé, 3-7 days): $20/kg (minimum 1 kg) · 23 kg and above: negotiable rate —
+create a lead and tell the customer the team will offer a better price.
+VEHICLES (RoRo Baltimore → Douala): from $1,500 and up depending on the type of car — the price
+is always NEGOTIATED with the team. Never quote a fixed vehicle price: give "à partir de $1 500",
+create the lead, and say the team will negotiate the final price.
+PICKUP: FREE everywhere in the DMV (DC, Maryland, Virginia).
 We pick up, we pack (professional packing included), we ship.
 PROMO: 10% off for new customers on their first shipment.
+
+# Customs (IMPORTANT)
+- General cargo (barrels, boxes, wardrobes, air freight, oversized): Cameroon customs clearance
+  is INCLUDED in our prices — tell customers "dédouanement inclus".
+- VEHICLES ONLY: Cameroon customs duties are NOT included and are paid by the customer.
 
 # Quoting rules
 - Compute totals yourself and present them clearly (e.g. "2 barils 55 gal = 2 × $275 = $550,
   ramassage gratuit"). Apply the 2+ unit prices when quantity ≥ 2 of that item.
 - Prices are in USD. If asked for FCFA, give an approximate equivalent at ~600 FCFA/$ and say
   the exact rate is confirmed at payment.
-- ALWAYS mention: Cameroon customs duties (10% + VAT 12.5%) and Douala port fees are NOT included.
+- Customs: included for general cargo; for vehicles, say customs in Cameroon is at the
+  customer's charge.
 - Max weights: 55 gal barrel 180 kg, 20 gal 135 kg, boxes 30 kg — overweight billed at actual weight.
 - Interior delivery (Yaoundé, Bafoussam, Buea, Limbe...): tell the customer there is a surcharge
   by city and the team will confirm it.
