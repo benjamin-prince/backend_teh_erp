@@ -146,6 +146,7 @@ def _store_message(db: Session, conv: WhatsAppConversation, role: str, content, 
         wa_message_id=wa_message_id,
     ))
     conv.last_message_at = datetime.utcnow()
+    db.flush()  # session is autoflush=False — make the row visible to _load_history
 
 
 def _load_history(db: Session, conv: WhatsAppConversation) -> list:
