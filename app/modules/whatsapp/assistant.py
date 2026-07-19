@@ -49,6 +49,9 @@ TehCargo Inc. — "Moving Cargo. Building Trust." Air express & maritime shippin
 (DMV area: Washington DC, Maryland, Virginia) to Cameroon: Douala, Yaoundé, Bafoussam, Buea, Limbe.
 Address: 15421 Old Columbia Pike, Burtonsville, MD 20866. Web: www.tehcargo.com — info@tehcargo.com.
 Sea departures from Baltimore — the FASTEST US route to Douala (18-25 days). Air: 3-7 days.
+Departure schedule: AIR shipments leave at least EVERY WEEK · SEA containers leave at least
+EVERY MONTH. A precise departure calendar is coming soon; for exact dates, the team confirms
+at booking.
 Door-to-door delivery available in Douala and all major cities of Cameroon (surcharge by city).
 We ship: barrels/drums, boxes, electronics, furniture, vehicles. Next container loading: July 30.
 
@@ -99,11 +102,15 @@ Keep the same language for the whole conversation unless the customer switches.
 
 # Your job
 1. Answer questions about TehCargo services.
-2. Give instant quotes from the official price list, then collect the pickup request.
-   Gather progressively: name, pickup address, destination, cargo type, weight or dimensions,
-   preferred pickup date. Before saving anything, you MUST always ask: "Is your shipment
-   ready for pickup now?" — and if it is not, ask when it will be ready. Only once you have
-   that answer AND at least the destination and cargo type, call create_lead. Tell the
+2. Give instant quotes from the official price list, then collect the FULL shipment request.
+   Before calling create_lead you MUST know EVERY aspect of the shipment and the customer.
+   Complete checklist (ask progressively, ONE question at a time, never as a long list):
+   ① customer full name · ② pickup address in the DMV · ③ mode: air or sea ·
+   ④ destination city in Cameroon · ⑤ cargo type and quantity (how many barrels/boxes/kg…) ·
+   ⑥ weight or dimensions estimate · ⑦ "Is your shipment ready for pickup now?" — if not,
+   when will it be ready · ⑧ preferred pickup date · ⑨ recipient in Cameroon: name and
+   phone number. Only call create_lead when the checklist is complete (recipient info may be
+   marked "to confirm" only if the customer really doesn't have it yet). Then tell the
    customer the team will confirm the pickup and final details.
 3. Escalate to a human with escalate_to_human when: the customer asks for a human, is upset,
    has a complaint, asks something outside your knowledge, or negotiates prices.
@@ -128,11 +135,14 @@ TOOLS = [
             "properties": {
                 "name": {"type": "string", "description": "Customer full name"},
                 "email": {"type": "string", "description": "Customer email if given"},
-                "pickup_address": {"type": "string", "description": "Pickup address or city"},
-                "destination": {"type": "string", "description": "Destination city/country"},
-                "cargo_type": {"type": "string", "description": "e.g. boxes, barrels, vehicle, documents"},
+                "pickup_address": {"type": "string", "description": "Pickup address in the DMV"},
+                "shipping_mode": {"type": "string", "enum": ["air", "sea"], "description": "Transport mode chosen"},
+                "destination": {"type": "string", "description": "Destination city in Cameroon"},
+                "cargo_type": {"type": "string", "description": "Type AND quantity, e.g. '2 barrels 55gal + 1 grand wardrobe'"},
                 "weight_or_dimensions": {"type": "string", "description": "Approximate weight or dimensions"},
                 "preferred_pickup_date": {"type": "string", "description": "Customer's preferred date, as stated"},
+                "recipient_name": {"type": "string", "description": "Receiver's full name in Cameroon ('to confirm' if unknown)"},
+                "recipient_phone": {"type": "string", "description": "Receiver's phone in Cameroon ('to confirm' if unknown)"},
                 "pickup_readiness": {
                     "type": "string",
                     "description": (
@@ -144,7 +154,8 @@ TOOLS = [
                 "notes": {"type": "string", "description": "Any other useful detail"},
                 "language": {"type": "string", "enum": ["fr", "en"], "description": "Conversation language"},
             },
-            "required": ["destination", "cargo_type", "pickup_readiness"],
+            "required": ["name", "pickup_address", "shipping_mode", "destination",
+                         "cargo_type", "pickup_readiness"],
         },
     },
     {
@@ -187,6 +198,9 @@ def _execute_tool(db: Session, conv: WhatsAppConversation, name: str, tool_input
             weight_or_dimensions=tool_input.get("weight_or_dimensions"),
             preferred_pickup_date=tool_input.get("preferred_pickup_date"),
             pickup_readiness=tool_input.get("pickup_readiness"),
+            shipping_mode=tool_input.get("shipping_mode"),
+            recipient_name=tool_input.get("recipient_name"),
+            recipient_phone=tool_input.get("recipient_phone"),
             notes=tool_input.get("notes"),
         )
         if tool_input.get("language") in ("fr", "en"):
@@ -194,15 +208,18 @@ def _execute_tool(db: Session, conv: WhatsAppConversation, name: str, tool_input
         db.add(lead)
         db.flush()
         logger.info("WhatsApp lead #%s created for %s", lead.id, conv.wa_id)
+        mode = {"air": "✈️ Air", "sea": "🚢 Mer"}.get(lead.shipping_mode or "", "—")
         _notify_admin(
             f"🚚 Nouveau lead TehCargo #{lead.id}\n"
             f"Nom: {lead.name or '—'}\n"
             f"Tél: +{lead.phone}\n"
+            f"Mode: {mode}\n"
             f"Pickup: {lead.pickup_address or '—'}\n"
             f"Destination: {lead.destination or '—'}\n"
             f"Cargo: {lead.cargo_type or '—'} ({lead.weight_or_dimensions or 'poids ?'})\n"
             f"✅ Prêt au ramassage: {lead.pickup_readiness or '—'}\n"
             f"Date souhaitée: {lead.preferred_pickup_date or '—'}\n"
+            f"Destinataire: {lead.recipient_name or '—'} ({lead.recipient_phone or 'tél ?'})\n"
             f"Notes: {lead.notes or '—'}"
         )
         return f"Lead saved with id {lead.id}. The team will follow up."

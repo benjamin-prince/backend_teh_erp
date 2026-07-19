@@ -61,6 +61,9 @@ class WhatsAppLead(Base):
     weight_or_dimensions = Column(String(200), nullable=True)
     preferred_pickup_date = Column(String(50), nullable=True)   # free text from customer
     pickup_readiness     = Column(String(200), nullable=True)   # ready now / ready on <date>, as stated
+    shipping_mode        = Column(String(10), nullable=True)    # air | sea
+    recipient_name       = Column(String(200), nullable=True)   # receiver in Cameroon
+    recipient_phone      = Column(String(30), nullable=True)
     notes                = Column(Text, nullable=True)
 
     # new | contacted | converted | rejected
