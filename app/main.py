@@ -15,6 +15,8 @@ Public whitelist (ACC-008):
   POST /api/v1/auth/password-reset/confirm
   GET  /api/v1/health
   GET  /api/v1/tracking/{tracking_number}
+  GET  /api/v1/whatsapp/webhook   ← Meta verification handshake
+  POST /api/v1/whatsapp/webhook   ← Meta message delivery (HMAC-verified)
 """
 import logging
 from contextlib import asynccontextmanager
@@ -69,6 +71,9 @@ from app.modules.autopark.models import (  # noqa: F401
 from app.modules.rentals.models import (  # noqa: F401
     RentalAsset, RentalContract, RentalPayment
 )
+from app.modules.whatsapp.models import (  # noqa: F401
+    WhatsAppConversation, WhatsAppMessage, WhatsAppLead
+)
 
 from app.modules.companies.router import router as companies_router
 from app.modules.users.router import auth_router, protected_auth_router, users_router, roles_router
@@ -97,6 +102,8 @@ from app.modules.stock.shop_payment_router import router as shop_payment_router
 from app.modules.stock.shop_auth_router import router as shop_auth_router
 from app.modules.autopark.router import router as autopark_router
 from app.modules.rentals.router import router as rentals_router
+from app.modules.whatsapp.router import webhook_router as whatsapp_webhook_router
+from app.modules.whatsapp.router import admin_router as whatsapp_admin_router
 
 logger = logging.getLogger("tehtek")
 
@@ -223,3 +230,5 @@ app.include_router(serial_router)       # traceability — auth via router depen
 app.include_router(autopark_router)     # fleet management — auth via router dependency
 app.include_router(rentals_router)      # rentals — auth via router dependency
 app.include_router(category_router)     # category taxonomy — authenticated
+app.include_router(whatsapp_webhook_router)  # public — Meta WhatsApp webhook (ACC-008)
+app.include_router(whatsapp_admin_router)    # whatsapp conversations & leads — authenticated

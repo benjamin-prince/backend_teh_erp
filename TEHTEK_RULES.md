@@ -631,7 +631,14 @@ POST   /api/v1/auth/refresh
 POST   /api/v1/auth/password-reset/request
 POST   /api/v1/auth/password-reset/confirm
 GET    /api/v1/health           ← system health check only
+GET    /api/v1/whatsapp/webhook ← Meta Cloud API verification handshake (hub.verify_token checked)
+POST   /api/v1/whatsapp/webhook ← Meta Cloud API message delivery (HMAC SHA-256 signature verified)
 ```
+
+⚠ PENDING OWNER REVIEW (added July 2026, TehCargo WhatsApp assistant): the two
+/api/v1/whatsapp/webhook routes must be public because Meta's servers call them.
+They are protected by hub.verify_token (GET) and X-Hub-Signature-256 HMAC (POST)
+instead of JWT.
 
 Customer Portal (customer.tehtek.com):
 ```
