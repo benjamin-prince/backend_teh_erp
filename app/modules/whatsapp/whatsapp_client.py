@@ -53,6 +53,17 @@ def send_text(to_wa_id: str, text: str) -> None:
                 resp.raise_for_status()
 
 
+def get_media(media_id: str) -> tuple[bytes, str]:
+    """Download an incoming media file (photo) from Meta. Returns (bytes, mime_type)."""
+    with httpx.Client(timeout=60) as client:
+        meta = client.get(f"{GRAPH_BASE_URL}/{media_id}", headers=_headers())
+        meta.raise_for_status()
+        info = meta.json()
+        resp = client.get(info["url"], headers={"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"})
+        resp.raise_for_status()
+        return resp.content, info.get("mime_type", "image/jpeg")
+
+
 def mark_read(wa_message_id: str) -> None:
     """Mark an incoming message as read (blue ticks). Best-effort."""
     try:

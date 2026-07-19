@@ -12,6 +12,7 @@ Staff (JWT, ACC-007 router-level auth):
   GET   /api/v1/whatsapp/leads
   PATCH /api/v1/whatsapp/leads/{id}
 """
+import base64
 import hashlib
 import hmac
 import json
@@ -120,10 +121,20 @@ def _handle_message(db: Session, msg: dict, contact: dict) -> None:
     if db.query(WhatsAppMessage.id).filter(WhatsAppMessage.wa_message_id == wa_message_id).first():
         return
 
+    image = None  # (mime_type, base64) — passed to Claude vision
     if msg.get("type") == "text":
         text = msg["text"]["body"]
+    elif msg.get("type") == "image":
+        caption = (msg.get("image") or {}).get("caption", "")
+        try:
+            data, mime = whatsapp_client.get_media(msg["image"]["id"])
+            image = (mime, base64.b64encode(data).decode())
+            text = caption or "[Photo envoyée par le client]"
+        except Exception:
+            logger.exception("Failed to download WhatsApp media")
+            text = None
     else:
-        # Phase 1: text only. Voice/images come in phase 3.
+        # Voice notes / documents come in a later phase
         text = None
 
     conv = db.query(WhatsAppConversation).filter(WhatsAppConversation.wa_id == wa_id).first()
@@ -154,15 +165,15 @@ def _handle_message(db: Session, msg: dict, contact: dict) -> None:
     if text is None:
         db.commit()  # keep the conversation row even though we can't process the message
         unsupported = (
-            "Merci pour votre message ! Pour l'instant je ne peux lire que les messages texte. "
-            "Pouvez-vous écrire votre demande ?\n\n"
-            "Thank you for your message! I can only read text messages for now. "
+            "Merci pour votre message ! Je peux lire les textes et les photos, mais pas encore "
+            "les notes vocales ou documents. Pouvez-vous écrire votre demande ?\n\n"
+            "Thank you! I can read texts and photos, but not voice notes or documents yet. "
             "Could you type your request?"
         )
         whatsapp_client.send_text(wa_id, unsupported)
         return
 
-    reply = run_assistant(db, conv, text, wa_message_id)
+    reply = run_assistant(db, conv, text, wa_message_id, image=image)
     if reply:
         whatsapp_client.send_text(wa_id, reply)
 
