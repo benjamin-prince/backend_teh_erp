@@ -15,6 +15,7 @@ from datetime import datetime
 import anthropic
 from sqlalchemy.orm import Session
 
+from app.modules.whatsapp import whatsapp_client
 from app.modules.whatsapp.models import (
     WhatsAppConversation,
     WhatsAppLead,
@@ -22,6 +23,20 @@ from app.modules.whatsapp.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Personal WhatsApp that receives lead/handoff notifications (digits only).
+# Must be different from the bot's own number.
+ADMIN_NOTIFY_WA_ID = os.getenv("WHATSAPP_ADMIN_NOTIFY_WA_ID", "")
+
+
+def _notify_admin(text: str) -> None:
+    """Best-effort WhatsApp notification to the business owner."""
+    if not ADMIN_NOTIFY_WA_ID:
+        return
+    try:
+        whatsapp_client.send_text(ADMIN_NOTIFY_WA_ID, text)
+    except Exception:
+        logger.exception("Admin notification failed")
 
 MODEL = os.getenv("WHATSAPP_ASSISTANT_MODEL", "claude-opus-4-8")
 MAX_HISTORY_MESSAGES = 40   # turns replayed to Claude per request
@@ -128,11 +143,27 @@ def _execute_tool(db: Session, conv: WhatsAppConversation, name: str, tool_input
         db.add(lead)
         db.flush()
         logger.info("WhatsApp lead #%s created for %s", lead.id, conv.wa_id)
+        _notify_admin(
+            f"🚚 Nouveau lead TehCargo #{lead.id}\n"
+            f"Nom: {lead.name or '—'}\n"
+            f"Tél: +{lead.phone}\n"
+            f"Pickup: {lead.pickup_address or '—'}\n"
+            f"Destination: {lead.destination or '—'}\n"
+            f"Cargo: {lead.cargo_type or '—'} ({lead.weight_or_dimensions or 'poids ?'})\n"
+            f"Date souhaitée: {lead.preferred_pickup_date or '—'}\n"
+            f"Notes: {lead.notes or '—'}"
+        )
         return f"Lead saved with id {lead.id}. The team will follow up."
 
     if name == "escalate_to_human":
         conv.status = "handoff"
         logger.info("WhatsApp conversation %s escalated: %s", conv.wa_id, tool_input.get("reason"))
+        _notify_admin(
+            f"🙋 Client en attente d'un humain\n"
+            f"De: {conv.profile_name or '?'} (+{conv.wa_id})\n"
+            f"Raison: {tool_input.get('reason', '—')}\n"
+            f"Le bot est en pause sur cette conversation."
+        )
         return "Conversation handed off. Tell the customer a team member will take over shortly."
 
     return f"Unknown tool: {name}"
