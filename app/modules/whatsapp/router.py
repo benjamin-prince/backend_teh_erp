@@ -17,6 +17,7 @@ import hmac
 import json
 import logging
 import os
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
@@ -186,6 +187,10 @@ class ConversationStatusUpdate(BaseModel):
     status: str  # active | handoff | closed
 
 
+class StaffReply(BaseModel):
+    text: str
+
+
 class LeadUpdate(BaseModel):
     status: str | None = None       # new | contacted | converted | rejected
     customer_id: int | None = None
@@ -232,6 +237,37 @@ def get_conversation_messages(conversation_id: int, db: Session = Depends(get_db
             text = m.content
         out.append({"id": m.id, "role": m.role, "text": text, "created_at": m.created_at})
     return out
+
+
+@admin_router.post("/conversations/{conversation_id}/reply")
+def staff_reply(
+    conversation_id: int,
+    body: StaffReply,
+    db: Session = Depends(get_db),
+):
+    """Send a message to the customer as a human (staff).
+
+    Puts the conversation in handoff so the bot stays silent until staff
+    sets it back to active. Stored with role='staff' — replayed to Claude
+    as an assistant turn so the bot keeps full context if reactivated.
+    """
+    conv = db.get(WhatsAppConversation, conversation_id)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty message")
+
+    whatsapp_client.send_text(conv.wa_id, text)
+    db.add(WhatsAppMessage(
+        conversation_id=conv.id,
+        role="staff",
+        content=json.dumps([{"type": "text", "text": text}], ensure_ascii=False),
+    ))
+    conv.status = "handoff"
+    conv.last_message_at = datetime.utcnow()
+    db.commit()
+    return {"conversation_id": conv.id, "status": conv.status, "sent": True}
 
 
 @admin_router.post("/conversations/{conversation_id}/status")

@@ -163,7 +163,9 @@ def _load_history(db: Session, conv: WhatsAppConversation) -> list:
             content = json.loads(row.content)
         except json.JSONDecodeError:
             content = [{"type": "text", "text": row.content}]
-        messages.append({"role": row.role, "content": content})
+        # Staff (human) replies replay as assistant turns so the bot keeps context
+        role = "assistant" if row.role == "staff" else row.role
+        messages.append({"role": role, "content": content})
     # History must start with a user turn (tool_result turns are stored as role=user)
     while messages and messages[0]["role"] != "user":
         messages.pop(0)
