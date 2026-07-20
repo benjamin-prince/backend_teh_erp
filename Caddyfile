@@ -90,7 +90,7 @@ admin-money.tehtek.com {
 	reverse_proxy tehmoney-admin-1:3100
 }
 
-tehcargo.com, www.tehcargo.com {
+teh-cargo.com, www.teh-cargo.com {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 		X-Content-Type-Options "nosniff"
