@@ -34,7 +34,13 @@ app.tehtek.com {
 		-Server
 	}
 
-	reverse_proxy tehtek-frontend:3000
+	handle_path /dl/* {
+		root * /srv/dl
+		file_server
+	}
+	handle {
+		reverse_proxy tehtek-frontend:3000
+	}
 
 	log {
 		output stdout
@@ -57,6 +63,31 @@ tehtek.com, www.tehtek.com {
 		output stdout
 		format json
 	}
+}
+
+customer.tehtek.com {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy tehtek-customer:3000
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+api-money.tehtek.com {
+	reverse_proxy tehmoney-backend-1:8100
+}
+
+admin-money.tehtek.com {
+	reverse_proxy tehmoney-admin-1:3100
 }
 
 tehcargo.com, www.tehcargo.com {
