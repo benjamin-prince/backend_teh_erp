@@ -58,3 +58,29 @@ tehtek.com, www.tehtek.com {
 		format json
 	}
 }
+
+tehcargo.com, www.tehcargo.com {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Privacy policy (Meta/WhatsApp compliance) — served by the Next app
+	@privacy path /privacy /privacy/*
+	handle @privacy {
+		reverse_proxy tehtek-shop:3000
+	}
+
+	# Temporary landing until the TehCargo site exists
+	handle {
+		redir https://tehtek.com{uri} temporary
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
