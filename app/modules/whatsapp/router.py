@@ -208,6 +208,15 @@ class LeadUpdate(BaseModel):
     notes: str | None = None
 
 
+def _preview(raw: str) -> str:
+    try:
+        blocks = json.loads(raw)
+        text = " ".join(b.get("text", "") for b in blocks if b.get("type") == "text").strip()
+        return text[:120] or "[média]"
+    except (json.JSONDecodeError, AttributeError):
+        return raw[:120]
+
+
 @admin_router.get("/conversations")
 def list_conversations(
     status: str | None = None,
@@ -217,6 +226,20 @@ def list_conversations(
     if status:
         q = q.filter(WhatsAppConversation.status == status)
     rows = q.order_by(WhatsAppConversation.last_message_at.desc()).limit(200).all()
+
+    # last message per conversation in one query
+    sub = (
+        db.query(
+            WhatsAppMessage.conversation_id,
+            func.max(WhatsAppMessage.id).label("mid"),
+        )
+        .group_by(WhatsAppMessage.conversation_id)
+        .subquery()
+    )
+    last_by_conv = {
+        m.conversation_id: m
+        for m in db.query(WhatsAppMessage).join(sub, WhatsAppMessage.id == sub.c.mid)
+    }
     return [
         {
             "id": c.id,
@@ -226,6 +249,8 @@ def list_conversations(
             "language": c.language,
             "customer_id": c.customer_id,
             "last_message_at": c.last_message_at,
+            "last_message_role": last_by_conv[c.id].role if c.id in last_by_conv else None,
+            "last_message_preview": _preview(last_by_conv[c.id].content) if c.id in last_by_conv else "",
         }
         for c in rows
     ]
