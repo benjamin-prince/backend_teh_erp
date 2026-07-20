@@ -116,7 +116,11 @@ Keep the same language for the whole conversation unless the customer switches.
    is complete (recipient info may be marked "to confirm" only if the customer really
    doesn't have it yet). Then tell the customer the team will confirm the pickup and
    final details.
-3. Escalate to a human with escalate_to_human when: the customer asks for a human, is upset,
+3. Track shipments: when a customer asks where their package is, ask for the tracking number
+   (format TRK-...) if not given, then call track_shipment and relay the status and latest
+   steps in the customer's language, in a friendly readable way (translate raw statuses like
+   "in_transit" into plain words). Never invent tracking information.
+4. Escalate to a human with escalate_to_human when: the customer asks for a human, is upset,
    has a complaint, asks something outside your knowledge, or negotiates prices.
 
 # Our location (give it whenever a customer asks where we are or wants to drop off)
@@ -165,6 +169,21 @@ TOOLS = [
             },
             "required": ["name", "pickup_address", "shipping_mode", "destination",
                          "cargo_type", "pickup_readiness"],
+        },
+    },
+    {
+        "name": "track_shipment",
+        "description": (
+            "Look up the live status of a TehCargo/TehTek shipment by its tracking number "
+            "(format like TRK-XXXXX-2026-000123). Use whenever a customer asks where their "
+            "package/shipment is. Returns the current status and the public tracking events."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tracking_number": {"type": "string", "description": "The tracking number given by the customer"},
+            },
+            "required": ["tracking_number"],
         },
     },
     {
@@ -232,6 +251,38 @@ def _execute_tool(db: Session, conv: WhatsAppConversation, name: str, tool_input
             f"Notes: {lead.notes or '—'}"
         )
         return f"Lead saved with id {lead.id}. The team will follow up."
+
+    if name == "track_shipment":
+        from app.modules.cargo.models import Shipment, TrackingEvent  # local import — avoids cycle
+
+        number = (tool_input.get("tracking_number") or "").strip().upper()
+        shipment = db.query(Shipment).filter_by(tracking_number=number).first()
+        if shipment is None:
+            return (
+                f"No shipment found for tracking number '{number}'. Ask the customer to "
+                "double-check the number (format TRK-...-YYYY-NNNNNN)."
+            )
+        events = (
+            db.query(TrackingEvent)
+            .filter_by(shipment_id=shipment.id, is_public=True)
+            .order_by(TrackingEvent.created_at.asc())
+            .all()
+        )
+        lines = [
+            f"Tracking {shipment.tracking_number}",
+            f"Status: {shipment.status}",
+            f"Type: {shipment.shipment_type}",
+            f"Receiver: {shipment.receiver_name or '—'} ({shipment.receiver_city or shipment.receiver_country or '—'})",
+        ]
+        if not events:
+            lines.append("No public tracking events yet.")
+        for e in events[-8:]:
+            lines.append(
+                f"- {e.created_at:%d/%m/%Y %H:%M} · {e.event_type}"
+                + (f" · {e.location}" if e.location else "")
+                + (f" · {e.description}" if e.description else "")
+            )
+        return "\n".join(lines)
 
     if name == "escalate_to_human":
         conv.status = "handoff"
