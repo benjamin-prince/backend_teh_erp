@@ -30,6 +30,10 @@ class DreamState(Base):
     streak       = Column(Integer, nullable=False, default=0)
     last_commit  = Column(Date, nullable=True)          # last day an action was logged
     last_rewrite = Column(Date, nullable=True)          # last morning the MDP was rewritten
+    # Napoleon Hill — Think and Grow Rich
+    give_in_return = Column(Text, nullable=True)        # what you intend to give in return (step 2)
+    read_morning   = Column(Date, nullable=True)        # last morning the statement was read aloud
+    read_evening   = Column(Date, nullable=True)        # last evening the statement was read aloud
     updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

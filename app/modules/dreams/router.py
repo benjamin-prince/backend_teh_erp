@@ -40,6 +40,9 @@ def _state_dict(st: DreamState) -> dict:
         "abcde": st.abcde or [], "streak": st.streak,
         "last_commit": st.last_commit.isoformat() if st.last_commit else "",
         "last_rewrite": st.last_rewrite.isoformat() if st.last_rewrite else "",
+        "give_in_return": st.give_in_return or "",
+        "read_morning": st.read_morning.isoformat() if st.read_morning else "",
+        "read_evening": st.read_evening.isoformat() if st.read_evening else "",
     }
 
 
@@ -69,6 +72,7 @@ class StatePatch(BaseModel):
     frog: str | None = None
     frog_date: str | None = None
     abcde: list | None = None
+    give_in_return: str | None = None
 
 
 @router.get("/state")
@@ -90,6 +94,8 @@ def patch_state(body: StatePatch, db: Session = Depends(get_db)):
         st.frog_date = date.fromisoformat(body.frog_date) if body.frog_date else None
     if body.abcde is not None:
         st.abcde = body.abcde
+    if body.give_in_return is not None:
+        st.give_in_return = body.give_in_return
     db.commit()
     return _state_dict(st)
 
@@ -98,6 +104,20 @@ def patch_state(body: StatePatch, db: Session = Depends(get_db)):
 def rewrite(db: Session = Depends(get_db)):
     st = _state(db)
     st.last_rewrite = date.today()
+    db.commit()
+    return _state_dict(st)
+
+
+@router.post("/affirm/{slot}")
+def affirm(slot: str, db: Session = Depends(get_db)):
+    """Napoleon Hill: read your definite statement aloud, morning and night."""
+    if slot not in ("morning", "evening"):
+        raise HTTPException(400, "slot must be morning or evening")
+    st = _state(db)
+    if slot == "morning":
+        st.read_morning = date.today()
+    else:
+        st.read_evening = date.today()
     db.commit()
     return _state_dict(st)
 
