@@ -74,6 +74,9 @@ from app.modules.rentals.models import (  # noqa: F401
 from app.modules.whatsapp.models import (  # noqa: F401
     WhatsAppConversation, WhatsAppMessage, WhatsAppLead
 )
+from app.modules.dreams.models import (  # noqa: F401
+    DreamState, Dream, DreamStep
+)
 
 from app.modules.companies.router import router as companies_router
 from app.modules.users.router import auth_router, protected_auth_router, users_router, roles_router
@@ -104,6 +107,7 @@ from app.modules.autopark.router import router as autopark_router
 from app.modules.rentals.router import router as rentals_router
 from app.modules.whatsapp.router import webhook_router as whatsapp_webhook_router
 from app.modules.whatsapp.router import admin_router as whatsapp_admin_router
+from app.modules.dreams.router import router as dreams_router
 
 logger = logging.getLogger("tehtek")
 
@@ -232,3 +236,4 @@ app.include_router(rentals_router)      # rentals — auth via router dependency
 app.include_router(category_router)     # category taxonomy — authenticated
 app.include_router(whatsapp_webhook_router)  # public — Meta WhatsApp webhook (ACC-008)
 app.include_router(whatsapp_admin_router)    # whatsapp conversations & leads — authenticated
+app.include_router(dreams_router)            # personal dream/goal tracker — authenticated
