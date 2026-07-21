@@ -115,3 +115,20 @@ teh-cargo.com, www.teh-cargo.com {
 		format json
 	}
 }
+
+motel-prestige.com, www.motel-prestige.com, app.motel-prestige.com {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy motel_app:3000
+
+	log {
+		output stdout
+		format json
+	}
+}
