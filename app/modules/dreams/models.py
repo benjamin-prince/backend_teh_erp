@@ -34,7 +34,34 @@ class DreamState(Base):
     give_in_return = Column(Text, nullable=True)        # what you intend to give in return (step 2)
     read_morning   = Column(Date, nullable=True)        # last morning the statement was read aloud
     read_evening   = Column(Date, nullable=True)        # last evening the statement was read aloud
+    vision         = Column(Text, nullable=True)        # the life you are building (imagination)
+    mastermind     = Column(JSONB, nullable=False, server_default="[]")  # [{name, role}]
     updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DreamHabit(Base):
+    """Daily keystone disciplines that compound into success (Tracy)."""
+    __tablename__ = "dream_habits"
+
+    id         = Column(Integer, primary_key=True)
+    name       = Column(Text, nullable=False, server_default="")
+    position   = Column(Integer, nullable=False, server_default="0")
+    streak     = Column(Integer, nullable=False, default=0)
+    last_done  = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DreamJournal(Base):
+    """Evening review — one entry per day."""
+    __tablename__ = "dream_journal"
+
+    id            = Column(Integer, primary_key=True)
+    entry_date    = Column(Date, unique=True, nullable=False)
+    wins          = Column(Text, nullable=True)         # 3 victories today
+    lesson        = Column(Text, nullable=True)         # what I learned
+    gratitude     = Column(Text, nullable=True)         # what I'm grateful for
+    tomorrow_frog = Column(Text, nullable=True)         # tomorrow's #1 task (plan the day in advance)
+    created_at    = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class Dream(Base):

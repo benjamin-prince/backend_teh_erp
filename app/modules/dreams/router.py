@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.modules.dreams.models import Dream, DreamState, DreamStep
+from app.modules.dreams.models import (
+    Dream, DreamState, DreamStep, DreamHabit, DreamJournal,
+)
 
 router = APIRouter(
     prefix="/api/v1/dreams",
@@ -43,6 +45,8 @@ def _state_dict(st: DreamState) -> dict:
         "give_in_return": st.give_in_return or "",
         "read_morning": st.read_morning.isoformat() if st.read_morning else "",
         "read_evening": st.read_evening.isoformat() if st.read_evening else "",
+        "vision": st.vision or "",
+        "mastermind": st.mastermind or [],
     }
 
 
@@ -73,6 +77,8 @@ class StatePatch(BaseModel):
     frog_date: str | None = None
     abcde: list | None = None
     give_in_return: str | None = None
+    vision: str | None = None
+    mastermind: list | None = None
 
 
 @router.get("/state")
@@ -96,6 +102,10 @@ def patch_state(body: StatePatch, db: Session = Depends(get_db)):
         st.abcde = body.abcde
     if body.give_in_return is not None:
         st.give_in_return = body.give_in_return
+    if body.vision is not None:
+        st.vision = body.vision
+    if body.mastermind is not None:
+        st.mastermind = body.mastermind
     db.commit()
     return _state_dict(st)
 
@@ -238,3 +248,112 @@ def delete_step(step_id: int, db: Session = Depends(get_db)):
     _recalc(d)
     db.commit()
     return _dream_dict(d)
+
+
+# ── Daily habits (Tracy — keystone disciplines) ───────────────────────────────
+
+def _habit_dict(h: DreamHabit) -> dict:
+    return {"id": h.id, "name": h.name, "position": h.position, "streak": h.streak,
+            "last_done": h.last_done.isoformat() if h.last_done else "",
+            "done_today": h.last_done == date.today()}
+
+
+class HabitPatch(BaseModel):
+    name: str
+
+
+@router.get("/habits")
+def list_habits(db: Session = Depends(get_db)):
+    rows = db.query(DreamHabit).order_by(DreamHabit.position, DreamHabit.id).all()
+    return [_habit_dict(h) for h in rows]
+
+
+@router.post("/habits", status_code=201)
+def create_habit(db: Session = Depends(get_db)):
+    h = DreamHabit(name="", position=db.query(DreamHabit).count())
+    db.add(h)
+    db.commit()
+    db.refresh(h)
+    return _habit_dict(h)
+
+
+@router.patch("/habits/{habit_id}")
+def update_habit(habit_id: int, body: HabitPatch, db: Session = Depends(get_db)):
+    h = db.get(DreamHabit, habit_id)
+    if h is None:
+        raise HTTPException(404, "Habit not found")
+    h.name = body.name
+    db.commit()
+    return _habit_dict(h)
+
+
+@router.delete("/habits/{habit_id}", status_code=204)
+def delete_habit(habit_id: int, db: Session = Depends(get_db)):
+    h = db.get(DreamHabit, habit_id)
+    if h:
+        db.delete(h)
+        db.commit()
+
+
+@router.post("/habits/{habit_id}/tick")
+def tick_habit(habit_id: int, db: Session = Depends(get_db)):
+    """Toggle today's completion; keep a consecutive-day streak."""
+    h = db.get(DreamHabit, habit_id)
+    if h is None:
+        raise HTTPException(404, "Habit not found")
+    today = date.today()
+    if h.last_done == today:
+        # untick today — step the streak back
+        h.streak = max(0, h.streak - 1)
+        h.last_done = today - timedelta(days=1) if h.streak > 0 else None
+    else:
+        h.streak = h.streak + 1 if h.last_done == today - timedelta(days=1) else 1
+        h.last_done = today
+    db.commit()
+    return _habit_dict(h)
+
+
+# ── Evening review / journal ──────────────────────────────────────────────────
+
+def _journal_dict(e: DreamJournal) -> dict:
+    return {"entry_date": e.entry_date.isoformat(), "wins": e.wins or "", "lesson": e.lesson or "",
+            "gratitude": e.gratitude or "", "tomorrow_frog": e.tomorrow_frog or ""}
+
+
+class JournalPut(BaseModel):
+    entry_date: str | None = None
+    wins: str | None = None
+    lesson: str | None = None
+    gratitude: str | None = None
+    tomorrow_frog: str | None = None
+
+
+@router.get("/journal")
+def get_journal(db: Session = Depends(get_db)):
+    """Today's entry (created empty if absent) plus the last 7 days."""
+    today = date.today()
+    e = db.query(DreamJournal).filter(DreamJournal.entry_date == today).first()
+    if e is None:
+        e = DreamJournal(entry_date=today)
+        db.add(e)
+        db.commit()
+        db.refresh(e)
+    recent = (db.query(DreamJournal)
+              .filter(DreamJournal.entry_date < today)
+              .order_by(DreamJournal.entry_date.desc()).limit(7).all())
+    return {"today": _journal_dict(e), "recent": [_journal_dict(r) for r in recent]}
+
+
+@router.put("/journal")
+def put_journal(body: JournalPut, db: Session = Depends(get_db)):
+    day = date.fromisoformat(body.entry_date) if body.entry_date else date.today()
+    e = db.query(DreamJournal).filter(DreamJournal.entry_date == day).first()
+    if e is None:
+        e = DreamJournal(entry_date=day)
+        db.add(e)
+    for f in ("wins", "lesson", "gratitude", "tomorrow_frog"):
+        v = getattr(body, f)
+        if v is not None:
+            setattr(e, f, v)
+    db.commit()
+    return _journal_dict(e)

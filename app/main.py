@@ -75,7 +75,7 @@ from app.modules.whatsapp.models import (  # noqa: F401
     WhatsAppConversation, WhatsAppMessage, WhatsAppLead
 )
 from app.modules.dreams.models import (  # noqa: F401
-    DreamState, Dream, DreamStep
+    DreamState, Dream, DreamStep, DreamHabit, DreamJournal
 )
 
 from app.modules.companies.router import router as companies_router
