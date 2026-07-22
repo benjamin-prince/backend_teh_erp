@@ -116,7 +116,7 @@ teh-cargo.com, www.teh-cargo.com {
 	}
 }
 
-motel-prestige.com, www.motel-prestige.com, app.motel-prestige.com {
+motel-prestige.com, www.motel-prestige.com {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 		X-Content-Type-Options "nosniff"
@@ -126,6 +126,29 @@ motel-prestige.com, www.motel-prestige.com, app.motel-prestige.com {
 	}
 
 	reverse_proxy motel_app:3000
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# New FastAPI/Next PMS (preview) — frontend + /api on the same host
+app.motel-prestige.com {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy motelv2_backend:8000
+	}
+	handle {
+		reverse_proxy motelv2_frontend:3000
+	}
 
 	log {
 		output stdout
