@@ -554,7 +554,9 @@ def create_shipment_item(
     from app.modules.cargo.models import ShipmentItem
     data = body.model_dump()
     if not data.get("tracking_number"):
-        data["tracking_number"] = _item_tracking(shipment, db)
+        base = (shipment.tracking_number or "").strip()
+        existing = db.query(ShipmentItem).filter_by(shipment_id=shipment_id).count()
+        data["tracking_number"] = f"{base}-{existing + 1}" if base else _item_tracking(shipment, db)
     item = ShipmentItem(shipment_id=shipment_id, **data)
     db.add(item)
     db.commit()
@@ -573,11 +575,15 @@ def replace_shipment_items(
         raise HTTPException(404, "Shipment not found")
     from app.modules.cargo.models import ShipmentItem
     db.query(ShipmentItem).filter_by(shipment_id=shipment_id).delete()
+    # Each package/article is a child of this shipment, so number it under the
+    # parent tracking number: TRK-...-000251-1, -2, ... in draft order. This keeps
+    # grouped packages visibly tied to their shipment and stops item tracking from
+    # consuming the global shipment sequence (which produced bogus TRK-...-000252).
+    base = (shipment.tracking_number or "").strip()
     items = []
-    for it in body:
+    for i, it in enumerate(body):
         data = it.model_dump()
-        if not data.get("tracking_number"):
-            data["tracking_number"] = _item_tracking(shipment, db)
+        data["tracking_number"] = f"{base}-{i + 1}" if base else _item_tracking(shipment, db)
         items.append(ShipmentItem(shipment_id=shipment_id, **data))
     db.add_all(items)
     db.commit()
