@@ -288,7 +288,7 @@ def confirm_pickup(
         from app.modules.finance.extended_router import _next_number
         cur = r.fee_currency or "XAF"
         num = _next_number(db, IncomeRecord, IncomeRecord.company_id, "INC", current_user.company_id)
-        db.add(IncomeRecord(
+        inc = IncomeRecord(
             company_id=current_user.company_id, branch_id=current_user.branch_id,
             income_number=num, date=datetime.utcnow(),
             description=f"Frais d'enlèvement — {r.title}", category="pickup_fee",
@@ -296,13 +296,17 @@ def confirm_pickup(
             customer_id=cust_id, tracking_number=s.tracking_number,
             amount=fee, currency=cur, exchange_rate=1, amount_base=fee,
             payment_method="cash", status="received", created_by=current_user.id,
-        ))
+        )
+        db.add(inc)
+        db.flush()                       # get inc.id for undo tracking
+        r.created_income_id = inc.id
         income = {"income_number": num, "amount": fee, "currency": cur}
 
     r.status = "done"
     r.completed_at = datetime.utcnow()
     r.ref_model = "shipment"
     r.ref_id = s.id
+    r.created_shipment_id = s.id         # so undo can delete exactly what we made
     db.commit()
     db.refresh(r)
     return {"shipment_id": s.id, "customer_id": cust_id, "income": income, "reminder": _out(r)}
@@ -349,12 +353,15 @@ def validate_payment(
         return {"invoice_id": inv.id, "amount": 0, "reminder": _out(r)}
 
     receipt = next_sequence(db, SequenceType.receipt_number)
-    db.add(Payment(
+    pay = Payment(
         company_id=current_user.company_id, invoice_id=inv.id, customer_id=inv.customer_id,
         receipt_number=receipt, payment_method=body.payment_method, amount=amount,
         currency=body.currency or inv.currency, status=PaymentStatus.confirmed,
         created_by=current_user.id, confirmed_by=current_user.id, confirmed_at=now,
-    ))
+    )
+    db.add(pay)
+    db.flush()
+    r.created_payment_id = pay.id        # so undo can reverse it
     inv.paid_amount = float(inv.paid_amount or 0) + amount
     inv.balance_due = float(inv.total) - float(inv.paid_amount)
     if inv.balance_due <= 0:
@@ -367,6 +374,72 @@ def validate_payment(
     db.refresh(r)
     return {"invoice_id": inv.id, "receipt_number": receipt, "amount": amount,
             "balance_due": float(inv.balance_due), "reminder": _out(r)}
+
+
+@router.post("/{reminder_id}/reopen")
+def reopen_reminder(
+    reminder_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Undo a completed reminder: reverse anything the confirmation created (the
+    draft shipment + its fee income for a pickup, or the payment for a validate)
+    and set the reminder back to pending."""
+    r = db.query(Reminder).filter_by(id=reminder_id, company_id=current_user.company_id).first()
+    if not r:
+        raise HTTPException(404, "Reminder not found")
+    now = datetime.utcnow()
+    reversed_ = {"shipment": None, "income": None, "payment": None}
+
+    # Which shipment did confirming this reminder create? Prefer the tracked id;
+    # fall back to the linked shipment for MANUAL pickups confirmed before that
+    # column existed (auto reminders link to pre-existing shipments — never touch).
+    ship_id = r.created_shipment_id
+    if not ship_id and r.auto_source is None and r.type == "pickup" and r.ref_model == "shipment" and r.ref_id:
+        ship_id = r.ref_id
+
+    # 1) Delete the shipment created by confirm-pickup (soft delete).
+    if ship_id:
+        from app.modules.cargo.models import Shipment
+        s = db.query(Shipment).filter_by(id=ship_id, deleted_at=None).first()
+        if s:
+            s.deleted_at = now
+            reversed_["shipment"] = ship_id
+        if r.ref_model == "shipment" and r.ref_id == ship_id:
+            r.ref_model, r.ref_id = None, None
+        r.created_shipment_id = None
+
+    # 2) Delete the pickup-fee income (soft delete).
+    if r.created_income_id:
+        from app.modules.finance.extended_models import IncomeRecord
+        inc = db.query(IncomeRecord).filter_by(id=r.created_income_id, deleted_at=None).first()
+        if inc:
+            inc.deleted_at = now
+            reversed_["income"] = r.created_income_id
+        r.created_income_id = None
+
+    # 3) Reverse a validated payment and restore the invoice balance.
+    if r.created_payment_id:
+        from app.modules.finance.models import Invoice, Payment
+        pay = db.query(Payment).filter_by(id=r.created_payment_id).first()
+        if pay:
+            inv = db.query(Invoice).filter_by(id=pay.invoice_id).first()
+            if inv:
+                inv.paid_amount = max(0.0, float(inv.paid_amount or 0) - float(pay.amount))
+                inv.balance_due = float(inv.total) - float(inv.paid_amount)
+                inv.status = "paid" if inv.balance_due <= 0 else ("partial" if float(inv.paid_amount) > 0 else "draft")
+                inv.paid_at = inv.paid_at if inv.balance_due <= 0 else None
+                inv.updated_at = now
+            db.delete(pay)
+            reversed_["payment"] = r.created_payment_id
+        r.created_payment_id = None
+
+    r.status = "pending"
+    r.completed_at = None
+    r.notified_at = None
+    db.commit()
+    db.refresh(r)
+    return {"reversed": reversed_, "reminder": _out(r)}
 
 
 @router.delete("/{reminder_id}", status_code=204)

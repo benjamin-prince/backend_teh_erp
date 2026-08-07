@@ -50,6 +50,11 @@ class Reminder(Base):
     # Auto-generation dedupe key, e.g. "invoice:25" / "pickup:18". NULL = manual.
     auto_source  = Column(String(60), nullable=True, index=True)
 
+    # Records CREATED by confirming this reminder, so "undo" can reverse them.
+    created_shipment_id = Column(Integer, nullable=True)
+    created_income_id   = Column(Integer, nullable=True)
+    created_payment_id  = Column(Integer, nullable=True)
+
     created_by   = Column(Integer, nullable=True)
     created_at   = Column(DateTime, default=datetime.utcnow)
     updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
