@@ -24,6 +24,12 @@ class Reminder(Base):
     status       = Column(String(20), nullable=False, default="pending")
     due_at       = Column(DateTime, nullable=False, default=datetime.utcnow)
 
+    # Who to contact — required for manual reminders (validated at the API).
+    contact_name  = Column(String(200), nullable=True)
+    contact_phone = Column(String(40), nullable=True)
+    # Full pickup/delivery address — optional (mainly for pickup reminders).
+    address       = Column(Text, nullable=True)
+
     # Optional deep-link to the source record.
     ref_model    = Column(String(50), nullable=True)   # "shipment" | "invoice" | "customer"
     ref_id       = Column(Integer, nullable=True)

@@ -33,25 +33,31 @@ VALID_TYPES = {"payment", "pickup", "delivery", "custom"}
 
 # ── Schemas ─────────────────────────────────────────────────────────────────
 class ReminderIn(BaseModel):
-    title:        str
-    type:         str = "custom"
-    due_at:       datetime
-    ref_model:    Optional[str] = None
-    ref_id:       Optional[int] = None
-    customer_id:  Optional[int] = None
-    notes:        Optional[str] = None
-    notify_wa:    bool = True
-    notify_wa_to: Optional[str] = None
+    title:         str                      # the description (required)
+    contact_name:  str                      # required
+    contact_phone: str                      # required
+    type:          str = "custom"
+    due_at:        datetime
+    address:       Optional[str] = None      # optional (pickup)
+    ref_model:     Optional[str] = None
+    ref_id:        Optional[int] = None
+    customer_id:   Optional[int] = None
+    notes:         Optional[str] = None
+    notify_wa:     bool = True
+    notify_wa_to:  Optional[str] = None
 
 
 class ReminderPatch(BaseModel):
-    title:        Optional[str] = None
-    type:         Optional[str] = None
-    due_at:       Optional[datetime] = None
-    status:       Optional[str] = None
-    notes:        Optional[str] = None
-    notify_wa:    Optional[bool] = None
-    notify_wa_to: Optional[str] = None
+    title:         Optional[str] = None
+    contact_name:  Optional[str] = None
+    contact_phone: Optional[str] = None
+    address:       Optional[str] = None
+    type:          Optional[str] = None
+    due_at:        Optional[datetime] = None
+    status:        Optional[str] = None
+    notes:         Optional[str] = None
+    notify_wa:     Optional[bool] = None
+    notify_wa_to:  Optional[str] = None
 
 
 class SnoozeIn(BaseModel):
@@ -107,9 +113,18 @@ def create_reminder(
 ):
     if body.type not in VALID_TYPES:
         raise HTTPException(400, f"type must be one of {sorted(VALID_TYPES)}")
+    if not body.title.strip():
+        raise HTTPException(400, "description is required")
+    if not body.contact_name.strip():
+        raise HTTPException(400, "contact name is required")
+    if not body.contact_phone.strip():
+        raise HTTPException(400, "contact number is required")
     r = Reminder(
         company_id=current_user.company_id,
         title=body.title.strip(),
+        contact_name=body.contact_name.strip(),
+        contact_phone=body.contact_phone.strip(),
+        address=(body.address or "").strip() or None,
         type=body.type,
         due_at=body.due_at,
         ref_model=body.ref_model,

@@ -118,6 +118,15 @@ logger = logging.getLogger("tehtek")
 async def lifespan(app: FastAPI):
     logger.info("TEHTEK ERP startup...")
     Base.metadata.create_all(bind=engine)
+    # Idempotent column patches (create_all only creates missing tables, not columns).
+    from sqlalchemy import text as _sql_text
+    with engine.begin() as _conn:
+        for _stmt in (
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS contact_name VARCHAR(200)",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(40)",
+            "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS address TEXT",
+        ):
+            _conn.execute(_sql_text(_stmt))
     db: Session = SessionLocal()
     try:
         from app.modules.companies.seeds import run_all_seeds

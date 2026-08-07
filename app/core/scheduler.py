@@ -87,6 +87,7 @@ def _autogen_reminders(db) -> int:
     trigger a push."""
     from app.modules.finance.models import Invoice
     from app.modules.cargo.models import Shipment
+    from app.modules.customers.models import Customer
     from app.modules.reminders.models import Reminder
 
     now = datetime.utcnow()
@@ -113,9 +114,13 @@ def _autogen_reminders(db) -> int:
         if r is None:
             bal = float(inv.balance_due or 0)
             cur = inv.currency or "XAF"
+            cust = db.get(Customer, inv.customer_id) if inv.customer_id else None
+            cname = ((cust.company_name or f"{cust.first_name} {cust.last_name}").strip()) if cust else ""
             db.add(Reminder(
                 company_id=inv.company_id or 1,
                 title=f"Encaisser {inv.invoice_number} — solde {bal:,.0f} {cur}",
+                contact_name=cname or None,
+                contact_phone=(cust.phone if cust else None),
                 type="payment", due_at=inv.due_date,
                 ref_model=inv.ref_model or "invoice", ref_id=inv.ref_id or inv.id,
                 customer_id=inv.customer_id, notify_wa=True, auto_source=key,
@@ -136,9 +141,15 @@ def _autogen_reminders(db) -> int:
         if r is None:
             due = s.arrived_at or now
             who = s.receiver_name or "le client"
+            addr = ", ".join(p for p in (
+                s.receiver_address, s.receiver_quartier, s.receiver_city, s.receiver_country
+            ) if p)
             db.add(Reminder(
                 company_id=s.company_id or 1,
                 title=f"Enlèvement {s.tracking_number or f'#{s.id}'} — prévenir {who}",
+                contact_name=s.receiver_name or None,
+                contact_phone=s.receiver_phone or None,
+                address=addr or None,
                 type="pickup", due_at=due,
                 ref_model="shipment", ref_id=s.id,
                 customer_id=s.customer_id, notify_wa=True, auto_source=key,
@@ -179,6 +190,11 @@ def _notify_due_reminders(db) -> int:
             continue
         icon = {"payment": "💰", "pickup": "📦", "delivery": "🚚"}.get(r.type, "🔔")
         body = f"{icon} Rappel TehTek\n{r.title}"
+        contact = " ".join(p for p in (r.contact_name, r.contact_phone) if p)
+        if contact:
+            body += f"\n👤 {contact}"
+        if r.address:
+            body += f"\n📍 {r.address}"
         if r.notes:
             body += f"\n{r.notes}"
         try:
