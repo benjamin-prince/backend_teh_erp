@@ -6,7 +6,7 @@ when due, pushed over WhatsApp best-effort by the background scheduler.
 """
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, Index
+from sqlalchemy import Boolean, Column, DateTime, Integer, Numeric, String, Text, Index
 
 from app.core.database import Base
 
@@ -29,6 +29,11 @@ class Reminder(Base):
     contact_phone = Column(String(40), nullable=True)
     # Full pickup/delivery address — optional (mainly for pickup reminders).
     address       = Column(Text, nullable=True)
+
+    # Pickup fee — charged for the pickup service; recorded as an income
+    # transaction when the pickup is confirmed.
+    fee_amount    = Column(Numeric(14, 2), nullable=True)
+    fee_currency  = Column(String(10), nullable=True, default="XAF")
 
     # Optional deep-link to the source record.
     ref_model    = Column(String(50), nullable=True)   # "shipment" | "invoice" | "customer"

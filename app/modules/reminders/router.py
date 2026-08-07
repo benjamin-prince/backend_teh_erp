@@ -39,6 +39,8 @@ class ReminderIn(BaseModel):
     type:          str = "custom"
     due_at:        datetime
     address:       Optional[str] = None      # optional (pickup)
+    fee_amount:    Optional[float] = None     # pickup fee (recorded on confirm)
+    fee_currency:  Optional[str] = None
     ref_model:     Optional[str] = None
     ref_id:        Optional[int] = None
     customer_id:   Optional[int] = None
@@ -52,6 +54,8 @@ class ReminderPatch(BaseModel):
     contact_name:  Optional[str] = None
     contact_phone: Optional[str] = None
     address:       Optional[str] = None
+    fee_amount:    Optional[float] = None
+    fee_currency:  Optional[str] = None
     type:          Optional[str] = None
     due_at:        Optional[datetime] = None
     status:        Optional[str] = None
@@ -131,6 +135,8 @@ def create_reminder(
         contact_name=body.contact_name.strip(),
         contact_phone=body.contact_phone.strip(),
         address=(body.address or "").strip() or None,
+        fee_amount=body.fee_amount if (body.fee_amount and body.fee_amount > 0) else None,
+        fee_currency=(body.fee_currency or "XAF") if body.fee_amount else None,
         type=body.type,
         due_at=body.due_at,
         ref_model=body.ref_model,
@@ -274,13 +280,32 @@ def confirm_pickup(
     db.commit()
     db.refresh(s)
 
+    # Record the pickup fee as an income transaction (Finance → Income).
+    income = None
+    fee = float(r.fee_amount or 0)
+    if fee > 0:
+        from app.modules.finance.extended_models import IncomeRecord
+        from app.modules.finance.extended_router import _next_number
+        cur = r.fee_currency or "XAF"
+        num = _next_number(db, IncomeRecord, IncomeRecord.company_id, "INC", current_user.company_id)
+        db.add(IncomeRecord(
+            company_id=current_user.company_id, branch_id=current_user.branch_id,
+            income_number=num, date=datetime.utcnow(),
+            description=f"Frais d'enlèvement — {r.title}", category="pickup_fee",
+            ref_model="shipment", ref_id=s.id, ref_label=s.tracking_number or r.title,
+            customer_id=cust_id, tracking_number=s.tracking_number,
+            amount=fee, currency=cur, exchange_rate=1, amount_base=fee,
+            payment_method="cash", status="received", created_by=current_user.id,
+        ))
+        income = {"income_number": num, "amount": fee, "currency": cur}
+
     r.status = "done"
     r.completed_at = datetime.utcnow()
     r.ref_model = "shipment"
     r.ref_id = s.id
     db.commit()
     db.refresh(r)
-    return {"shipment_id": s.id, "customer_id": cust_id, "reminder": _out(r)}
+    return {"shipment_id": s.id, "customer_id": cust_id, "income": income, "reminder": _out(r)}
 
 
 @router.post("/{reminder_id}/validate-payment")
