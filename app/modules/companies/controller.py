@@ -24,6 +24,17 @@ ROUTE_CODES = {
     "cameroon_africa": "CMAFR",
 }
 
+# Tracking numbers are keyed on freight type + month → SEA-AUG-2026-000258.
+TYPE_CODES = {
+    "sea_freight":   "SEA",
+    "air_express":   "AIR",
+    "air_cargo":     "AIR",
+    "land_freight":  "LAND",
+    "local_express": "EXP",
+}
+MONTH_CODES = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+               "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+
 
 def next_sequence(db: Session, seq_type: str, route: Optional[str] = None) -> str:
     """
@@ -47,8 +58,9 @@ def next_sequence(db: Session, seq_type: str, route: Optional[str] = None) -> st
     val = str(row.current_value).zfill(row.pad_length)
 
     if seq_type == SequenceType.tracking_number:
-        route_code = ROUTE_CODES.get(route or "", "UNK")
-        return f"{row.prefix}-{route_code}-{now.year}-{val}"
+        # `route` carries the shipment type here → SEA-AUG-2026-000258.
+        type_code = TYPE_CODES.get(route or "", "TRK")
+        return f"{type_code}-{MONTH_CODES[now.month - 1]}-{now.year}-{val}"
 
     if row.month_scoped:
         return f"{row.prefix}-{now.year}-{now.month:02d}-{val}"

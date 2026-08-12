@@ -235,7 +235,7 @@ def confirm_shipment(
         raise HTTPException(404, "Shipment not found")
     if not s.declaration_accepted:
         raise HTTPException(400, "Customer must accept the liability declaration (SR-008) before confirmation")
-    s.tracking_number = next_sequence(db, SequenceType.tracking_number, s.route_legacy or "")
+    s.tracking_number = next_sequence(db, SequenceType.tracking_number, s.shipment_type or "")
     s.status = ShipmentStatus.confirmed
     db.commit()
     # Log tracking event
@@ -538,7 +538,7 @@ def list_shipment_items(
     return db.query(ShipmentItem).filter_by(shipment_id=shipment_id).order_by(ShipmentItem.sort_order).all()
 
 def _item_tracking(shipment: Shipment, db: Session) -> str:
-    return next_sequence(db, SequenceType.tracking_number, shipment.route_legacy or "")
+    return next_sequence(db, SequenceType.tracking_number, shipment.shipment_type or "")
 
 
 @router.post("/shipments/{shipment_id}/items", response_model=ShipmentItemOut, status_code=201)
