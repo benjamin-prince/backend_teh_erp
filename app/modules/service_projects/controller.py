@@ -362,6 +362,11 @@ def generate_invoice(db: Session, project_id: int,
     elif percentage is not None:
         factor = Decimal(str(min(max(percentage, 1), 100) / 100))
         inv_total = (project_total * factor).quantize(Decimal("0.01"))
+        # Never bill more than what's left after earlier invoices — a "balance"
+        # (100%) invoice after a paid acompte must bill only the remainder, not
+        # the full project again (that double-billed).
+        if remaining > 0 and inv_total > remaining:
+            inv_total = remaining.quantize(Decimal("0.01"))
         pct_display = int(percentage)
     else:
         # Default: full remaining balance
