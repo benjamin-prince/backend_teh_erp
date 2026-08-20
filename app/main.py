@@ -110,6 +110,8 @@ from app.modules.whatsapp.router import admin_router as whatsapp_admin_router
 from app.modules.dreams.router import router as dreams_router
 from app.modules.reminders.models import Reminder  # noqa: F401  (create_all)
 from app.modules.reminders.router import router as reminders_router
+from app.modules.ads.models import AdCampaign  # noqa: F401  (create_all)
+from app.modules.ads.router import router as ads_router
 
 logger = logging.getLogger("tehtek")
 
@@ -254,3 +256,4 @@ app.include_router(whatsapp_webhook_router)  # public — Meta WhatsApp webhook 
 app.include_router(whatsapp_admin_router)    # whatsapp conversations & leads — authenticated
 app.include_router(dreams_router)            # personal dream/goal tracker — authenticated
 app.include_router(reminders_router)         # payment/pickup/custom reminders — authenticated
+app.include_router(ads_router)               # ad campaigns: spend + lead attribution — authenticated

@@ -322,6 +322,26 @@ def update_conversation_status(
     return {"id": conv.id, "status": conv.status}
 
 
+@admin_router.get("/leads/stats")
+def lead_stats(db: Session = Depends(get_db)):
+    """Lead funnel counts for the InnerShift coach app (goal = grow TehCargo
+    leads from Facebook ads → WhatsApp bot → this table)."""
+    from datetime import datetime, timedelta
+    now = datetime.utcnow()
+    start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    q = db.query(WhatsAppLead)
+    total = q.count()
+    today = q.filter(WhatsAppLead.created_at >= start_today).count()
+    last7 = q.filter(WhatsAppLead.created_at >= now - timedelta(days=7)).count()
+    last30 = q.filter(WhatsAppLead.created_at >= now - timedelta(days=30)).count()
+    converted = q.filter(WhatsAppLead.status == "converted").count()
+    new = q.filter(WhatsAppLead.status == "new").count()
+    return {
+        "total": total, "today": today, "last7": last7, "last30": last30,
+        "converted": converted, "new": new,
+    }
+
+
 @admin_router.get("/leads")
 def list_leads(status: str | None = None, db: Session = Depends(get_db)):
     q = db.query(WhatsAppLead)
