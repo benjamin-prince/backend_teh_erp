@@ -17,7 +17,9 @@ class Invoice(Base):
     id             = Column(Integer, primary_key=True)
     company_id     = Column(Integer, ForeignKey("companies.id"), nullable=False)
     branch_id      = Column(Integer, ForeignKey("branches.id"), nullable=True)
-    invoice_number = Column(String(30), unique=True, nullable=False)  # INV-2026-04-000001
+    # SEQ-003: shared across every invoice of one source document (acompte,
+    # solde, tranches) — deliberately NOT unique. See finance/numbering.py.
+    invoice_number = Column(String(30), index=True, nullable=False)  # INV-2026-04-000001
     invoice_type   = Column(String(30), nullable=False, default=InvoiceType.shipment)
     status         = Column(String(30), nullable=False, default=InvoiceStatus.draft)
 
