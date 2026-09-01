@@ -1,5 +1,6 @@
 """TEHTEK — Finance Router. ACC-007: auth at router level."""
 from datetime import datetime
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
@@ -117,7 +118,18 @@ def get_invoice(
     inv = db.query(Invoice).filter_by(id=invoice_id, deleted_at=None).first()
     if not inv:
         raise HTTPException(404, "Invoice not found")
-    return inv
+    # Same extra field the order/project endpoints carry, so the printed
+    # document can tell a balance invoice from a first acompte.
+    out = {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+    siblings = []
+    if inv.ref_model and inv.ref_id:
+        siblings = (db.query(Invoice)
+                      .filter_by(ref_model=inv.ref_model, ref_id=inv.ref_id,
+                                 deleted_at=None)
+                      .all())
+    out["total_previously_paid"] = float(sum(Decimal(str(i.paid_amount or 0))
+                                             for i in siblings))
+    return out
 
 
 class InvoiceSerialsBody(BaseModel):
@@ -407,6 +419,22 @@ class OrderInvoiceGen(BaseModel):
     amount: Optional[float] = None       # explicit amount to bill (acompte)
 
 
+def _order_invoice_out(db: Session, order_id: int, inv: Invoice) -> dict:
+    """Invoice payload + what earlier tranches of this order already collected.
+
+    Mirrors the service-project endpoints: the UI reads
+    `total_previously_paid > 0` to tell a balance invoice from a first acompte,
+    and label the payment accordingly.
+    """
+    all_invs = (db.query(Invoice)
+                  .filter_by(ref_model="order", ref_id=order_id, deleted_at=None)
+                  .all())
+    out = {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+    out["total_previously_paid"] = float(sum(Decimal(str(i.paid_amount or 0))
+                                             for i in all_invs))
+    return out
+
+
 @router.post("/orders/{order_id}/invoice", status_code=201)
 def generate_invoice_from_order(
     order_id: int,
@@ -437,14 +465,15 @@ def generate_invoice_from_order(
         None,
     )
     if open_unpaid is not None:
-        return open_unpaid
+        return _order_invoice_out(db, order_id, open_unpaid)
 
     order_total = float(o.total or 0)
     total_paid = sum(float(i.paid_amount or 0) for i in all_invs)
     remaining = max(order_total - total_paid, 0.0)
     # Nothing left to bill — return the latest invoice instead of re-billing
     if remaining <= 0.009 and all_invs:
-        return sorted(all_invs, key=lambda x: x.id, reverse=True)[0]
+        latest = sorted(all_invs, key=lambda x: x.id, reverse=True)[0]
+        return _order_invoice_out(db, order_id, latest)
 
     if amt is not None:
         inv_total = min(float(amt), remaining if remaining > 0 else order_total)
@@ -500,7 +529,7 @@ def generate_invoice_from_order(
     )
     db.commit()
     db.refresh(inv)
-    return inv
+    return _order_invoice_out(db, order_id, inv)
 
 @router.get("/orders/{order_id}/invoice")
 def get_invoice_by_order(
@@ -512,7 +541,7 @@ def get_invoice_by_order(
              .order_by(Invoice.id.desc()).first())
     if not inv:
         raise HTTPException(404, "No invoice for this order")
-    return inv
+    return _order_invoice_out(db, order_id, inv)
 
 
 # ── Debt (added by install_debt.sh) ──────────────────────────────────────────
