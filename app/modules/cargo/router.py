@@ -648,18 +648,16 @@ def create_shipment_invoice(
     shipment = db.query(Shipment).filter_by(id=shipment_id).first()
     if not shipment:
         raise HTTPException(404, "Shipment not found")
-    from app.modules.companies.controller import next_sequence
-    from app.core.enums import SequenceType
-    number = next_sequence(db, SequenceType.invoice_number)
+    from app.modules.finance.numbering import issue_invoice
     total = body.subtotal + body.tax_amount - body.discount_amount
-    inv = Invoice(
-        company_id=current_user.company_id,
-        branch_id=current_user.branch_id,
-        invoice_number=number,
-        invoice_type=InvoiceType.shipment,
-        customer_id=shipment.customer_id,
+    inv = issue_invoice(
+        db,
         ref_model="shipment",
         ref_id=shipment_id,
+        company_id=current_user.company_id,
+        branch_id=current_user.branch_id,
+        invoice_type=InvoiceType.shipment,
+        customer_id=shipment.customer_id,
         subtotal=body.subtotal,
         tax_amount=body.tax_amount,
         discount_amount=body.discount_amount,
@@ -670,7 +668,6 @@ def create_shipment_invoice(
         line_items_json=body.line_items_json,
         created_by=current_user.id,
     )
-    db.add(inv)
     db.commit()
     db.refresh(inv)
     return {c.name: getattr(inv, c.name) for c in inv.__table__.columns}

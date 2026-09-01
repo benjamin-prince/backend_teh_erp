@@ -334,8 +334,7 @@ def generate_invoice(db: Session, project_id: int,
                      percentage: float = None, amount: float = None,
                      company_id: int = 1, created_by: int = None):
     from app.modules.finance.models import Invoice
-    from app.modules.companies.controller import next_sequence
-    from app.core.enums import SequenceType
+    from app.modules.finance.numbering import issue_invoice
 
     project = get_project(db, project_id)
 
@@ -400,13 +399,13 @@ def generate_invoice(db: Session, project_id: int,
         notes_parts.append(project.notes)
     notes = "\n".join(notes_parts) or None
 
-    inv = Invoice(
-        company_id      = company_id,
-        invoice_number  = next_sequence(db, SequenceType.invoice_number),
-        invoice_type    = "sale",
-        customer_id     = project.customer_id,
+    inv = issue_invoice(
+        db,
         ref_model       = "service_project",
         ref_id          = project.id,
+        company_id      = company_id,
+        invoice_type    = "sale",
+        customer_id     = project.customer_id,
         subtotal        = subtotal,
         discount_amount = discount,
         tax_amount      = tax,
@@ -424,8 +423,6 @@ def generate_invoice(db: Session, project_id: int,
         notes           = notes,
         created_by      = created_by,
     )
-    db.add(inv)
-    db.flush()
 
     project.invoice_id  = inv.id
     project.status      = ServiceProjectStatus.invoiced

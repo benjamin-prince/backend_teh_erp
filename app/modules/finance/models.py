@@ -2,7 +2,7 @@
 from datetime import datetime
 from sqlalchemy import (
     Boolean, Column, DateTime, ForeignKey, Integer,
-    Numeric, String, Text, Index
+    Numeric, String, Text, Index, event
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -69,6 +69,29 @@ class Invoice(Base):
         Index("ix_invoice_company_status", "company_id", "status"),
         Index("ix_invoice_customer", "customer_id"),
     )
+
+
+class InvoiceNumberLocked(Exception):
+    """SEQ-002 violation: an issued invoice number was reassigned."""
+
+    def __init__(self, old: str, new: str):
+        self.old, self.new = old, new
+        super().__init__(
+            f"Le numéro de facture {old} est définitif et ne peut pas devenir {new}."
+        )
+
+
+@event.listens_for(Invoice.invoice_number, "set", retval=True, active_history=True)
+def _freeze_invoice_number(target, value, oldvalue, initiator):
+    """SEQ-002: a number handed to a customer is never reassigned.
+
+    Guards every application write path — regeneration, imports, admin edits.
+    The database carries the same rule as a trigger (see the SEQ-002 migration)
+    so raw SQL cannot bypass it either.
+    """
+    if isinstance(oldvalue, str) and oldvalue and oldvalue != value:
+        raise InvoiceNumberLocked(oldvalue, value)
+    return value
 
 
 class Payment(Base):

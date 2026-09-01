@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_permission
 from app.modules.finance.models import Invoice, Payment, CashSession, Expense
+from app.modules.finance.numbering import issue_invoice
 from app.modules.companies.controller import next_sequence
 from app.core.enums import InvoiceStatus, PaymentStatus, CashSessionStatus, SequenceType
 
@@ -68,17 +69,20 @@ def create_invoice(
     db: Session = Depends(get_db),
     current_user=Depends(require_permission("finance:invoices")),
 ):
-    number = next_sequence(db, SequenceType.invoice_number)
     total = body.subtotal + body.tax_amount - body.discount_amount
-    invoice = Invoice(
+    payload = body.model_dump()
+    ref_model = payload.pop("ref_model", None)
+    ref_id    = payload.pop("ref_id", None)
+    invoice = issue_invoice(
+        db,
+        ref_model=ref_model,
+        ref_id=ref_id,
         company_id=current_user.company_id,
-        invoice_number=number,
         total=total,
         balance_due=total,
         created_by=current_user.id,
-        **body.model_dump(),
+        **payload,
     )
-    db.add(invoice)
     db.commit()
     db.refresh(invoice)
     return invoice
@@ -470,13 +474,13 @@ def generate_invoice_from_order(
         notes_parts.append(o.notes)
     notes = "\n".join(notes_parts) or None
 
-    inv = Invoice(
-        company_id=current_user.company_id,
-        invoice_number=next_sequence(db, SequenceType.invoice_number),
-        invoice_type="sale",
-        customer_id=o.customer_id,
+    inv = issue_invoice(
+        db,
         ref_model="order",
         ref_id=o.id,
+        company_id=current_user.company_id,
+        invoice_type="sale",
+        customer_id=o.customer_id,
         subtotal=float(o.subtotal or 0),                       # FULL HT (acompte print shows complet)
         tax_amount=round(float(o.tax_amount or 0) * factor, 2),
         retenue_amount=round(float(getattr(o, "retenue_amount", 0) or 0) * factor, 2),
@@ -494,7 +498,6 @@ def generate_invoice_from_order(
         line_items_json=_json.dumps(line_items),
         created_by=current_user.id,
     )
-    db.add(inv)
     db.commit()
     db.refresh(inv)
     return inv

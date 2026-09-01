@@ -24,6 +24,7 @@ from app.modules.service_projects.models import (  # noqa: F401
     ServiceType, ServiceProject, ServiceMilestone
 )
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -59,7 +60,8 @@ from app.modules.commissions.models import (  # noqa: F401
     CommissionPartner, Commission, CommissionPayout, CommissionDispute
 )
 from app.modules.finance.models import (  # noqa: F401
-    Invoice, Payment, CashSession, Expense, Debt, DebtPayment
+    Invoice, Payment, CashSession, Expense, Debt, DebtPayment,
+    InvoiceNumberLocked
 )
 from app.modules.insurance.models import (  # noqa: F401
     InsurancePlan, InsurancePolicy, InsuranceClaim
@@ -171,6 +173,13 @@ app = FastAPI(
     openapi_url="/api/openapi.json" if settings.DEBUG else None,
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(InvoiceNumberLocked)
+def invoice_number_locked_handler(request, exc: InvoiceNumberLocked):
+    """SEQ-002: refuse the write instead of silently renumbering an invoice."""
+    logger.error("SEQ-002 blocked: %s → %s", exc.old, exc.new)
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 
 @app.get("/api/v1/health", tags=["system"])
