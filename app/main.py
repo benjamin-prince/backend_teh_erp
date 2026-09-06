@@ -18,6 +18,8 @@ Public whitelist (ACC-008):
   GET  /api/v1/whatsapp/webhook   ← Meta verification handshake
   POST /api/v1/whatsapp/webhook   ← Meta message delivery (HMAC-verified)
   POST /api/v1/cargo/web-enquiry  ← teh-cargo.com contact form (honeypot + rate limit)
+  POST /api/v1/cargo/pickup       ← teh-cargo.com pickup booking (honeypot + rate limit)
+  POST /api/v1/cargo/pickup-photo ← photo of the goods, straight to Cloudinary
 """
 import logging
 from contextlib import asynccontextmanager
@@ -87,6 +89,9 @@ from app.modules.customers.router import router as customers_router
 from app.modules.cargo.router import router as cargo_router
 from app.modules.cargo.web_enquiry import (  # noqa: F401  (model → create_all)
     router as cargo_web_enquiry_router, CargoWebEnquiry
+)
+from app.modules.cargo.pickup import (  # noqa: F401  (model → create_all)
+    router as cargo_pickup_router, CargoPickupBooking
 )
 from app.modules.stock.router import router as stock_router
 from app.modules.orders.router import router as orders_router
@@ -244,6 +249,7 @@ app.include_router(companies_router)
 app.include_router(customers_router)
 app.include_router(cargo_router)
 app.include_router(cargo_web_enquiry_router)  # public — teh-cargo.com contact form (ACC-008)
+app.include_router(cargo_pickup_router)       # public — teh-cargo.com pickup booking (ACC-008)
 app.include_router(cargo_routes_router)
 app.include_router(packing_router)
 app.include_router(stock_router)
