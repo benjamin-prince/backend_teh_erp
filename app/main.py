@@ -91,7 +91,8 @@ from app.modules.cargo.web_enquiry import (  # noqa: F401  (model → create_all
     router as cargo_web_enquiry_router, CargoWebEnquiry
 )
 from app.modules.cargo.pickup import (  # noqa: F401  (model → create_all)
-    router as cargo_pickup_router, CargoPickupBooking
+    router as cargo_pickup_router, admin_router as cargo_pickup_admin_router,
+    CargoPickupBooking
 )
 from app.modules.stock.router import router as stock_router
 from app.modules.orders.router import router as orders_router
@@ -250,6 +251,7 @@ app.include_router(customers_router)
 app.include_router(cargo_router)
 app.include_router(cargo_web_enquiry_router)  # public — teh-cargo.com contact form (ACC-008)
 app.include_router(cargo_pickup_router)       # public — teh-cargo.com pickup booking (ACC-008)
+app.include_router(cargo_pickup_admin_router) # authed — ERP screen for pickups & enquiries
 app.include_router(cargo_routes_router)
 app.include_router(packing_router)
 app.include_router(stock_router)

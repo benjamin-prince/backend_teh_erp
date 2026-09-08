@@ -17,7 +17,7 @@ import cloudinary
 import cloudinary.uploader
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
-from sqlalchemy import Column, DateTime, Integer, Numeric, String, Text
+from sqlalchemy import Column, DateTime, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -171,3 +171,95 @@ def create_pickup(body: BookingIn, request: Request, db: Session = Depends(get_d
         pass   # the booking is saved; a failed ping must never lose it
 
     return {"ok": True, "id": row.id, "summary": f"{items}\n{where}"}
+
+
+# ── Admin (ERP) ──────────────────────────────────────────────────────────────
+# Read-only listing plus a status change, so the front desk can actually work
+# these requests instead of querying the database by hand.
+
+from fastapi import Query
+from app.core.dependencies import require_permission
+from app.modules.cargo.web_enquiry import CargoWebEnquiry
+
+admin_router = APIRouter(prefix="/api/v1/cargo/admin", tags=["cargo-admin"])
+
+PICKUP_STATUSES = ("new", "contacted", "scheduled", "done", "cancelled")
+
+
+def _pickup_out(r: CargoPickupBooking) -> dict:
+    return {
+        "id": r.id, "name": r.name, "phone": r.phone,
+        "items": json.loads(r.items_json) if r.items_json else [],
+        "photos": json.loads(r.photos_json) if r.photos_json else [],
+        "address": r.address,
+        "latitude": float(r.latitude) if r.latitude is not None else None,
+        "longitude": float(r.longitude) if r.longitude is not None else None,
+        "maps_url": (f"https://maps.google.com/?q={r.latitude},{r.longitude}"
+                     if r.latitude is not None and r.longitude is not None else None),
+        "preferred_date": r.preferred_date, "notes": r.notes, "lang": r.lang,
+        "status": r.status,
+        "handled_at": r.handled_at.isoformat() if r.handled_at else None,
+        "created_at": r.created_at.isoformat(),
+    }
+
+
+@admin_router.get("/pickups")
+def list_pickups(status: str | None = Query(default=None),
+                 limit: int = Query(default=100, le=500),
+                 db: Session = Depends(get_db),
+                 _=Depends(require_permission("cargo:shipments"))):
+    q = db.query(CargoPickupBooking)
+    if status:
+        q = q.filter(CargoPickupBooking.status == status)
+    rows = q.order_by(CargoPickupBooking.id.desc()).limit(limit).all()
+    counts = {s: 0 for s in PICKUP_STATUSES}
+    for s, n in (db.query(CargoPickupBooking.status,
+                          func.count(CargoPickupBooking.id))
+                   .group_by(CargoPickupBooking.status).all()):
+        counts[s] = n
+    return {"items": [_pickup_out(r) for r in rows], "counts": counts}
+
+
+class PickupStatusIn(BaseModel):
+    status: str
+
+
+@admin_router.patch("/pickups/{pickup_id}")
+def set_pickup_status(pickup_id: int, body: PickupStatusIn,
+                      db: Session = Depends(get_db),
+                      _=Depends(require_permission("cargo:shipments"))):
+    if body.status not in PICKUP_STATUSES:
+        raise HTTPException(400, f"Statut invalide. Attendu : {', '.join(PICKUP_STATUSES)}")
+    row = db.query(CargoPickupBooking).filter_by(id=pickup_id).first()
+    if not row:
+        raise HTTPException(404, "Demande introuvable")
+    row.status = body.status
+    row.handled_at = datetime.utcnow() if body.status != "new" else None
+    db.commit()
+    db.refresh(row)
+    return _pickup_out(row)
+
+
+@admin_router.get("/enquiries")
+def list_enquiries(limit: int = Query(default=100, le=500),
+                   db: Session = Depends(get_db),
+                   _=Depends(require_permission("cargo:shipments"))):
+    rows = (db.query(CargoWebEnquiry)
+              .order_by(CargoWebEnquiry.id.desc()).limit(limit).all())
+    return {"items": [{
+        "id": r.id, "name": r.name, "contact": r.contact, "mode": r.mode,
+        "message": r.message, "lang": r.lang,
+        "handled_at": r.handled_at.isoformat() if r.handled_at else None,
+        "created_at": r.created_at.isoformat(),
+    } for r in rows]}
+
+
+@admin_router.patch("/enquiries/{enquiry_id}")
+def toggle_enquiry(enquiry_id: int, db: Session = Depends(get_db),
+                   _=Depends(require_permission("cargo:shipments"))):
+    row = db.query(CargoWebEnquiry).filter_by(id=enquiry_id).first()
+    if not row:
+        raise HTTPException(404, "Message introuvable")
+    row.handled_at = None if row.handled_at else datetime.utcnow()
+    db.commit()
+    return {"id": row.id, "handled_at": row.handled_at.isoformat() if row.handled_at else None}
