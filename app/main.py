@@ -79,6 +79,9 @@ from app.modules.rentals.models import (  # noqa: F401
 from app.modules.whatsapp.models import (  # noqa: F401
     WhatsAppConversation, WhatsAppMessage, WhatsAppLead
 )
+from app.modules.dawn.models import (  # noqa: F401  (create_all)
+    DawnDay, DawnSet, DawnCandidate, DawnResearch
+)
 from app.modules.dreams.models import (  # noqa: F401
     DreamState, Dream, DreamStep, DreamHabit, DreamJournal
 )
@@ -120,6 +123,7 @@ from app.modules.rentals.router import router as rentals_router
 from app.modules.whatsapp.router import webhook_router as whatsapp_webhook_router
 from app.modules.whatsapp.router import admin_router as whatsapp_admin_router
 from app.modules.dreams.router import router as dreams_router
+from app.modules.dawn.router import router as dawn_router
 from app.modules.reminders.models import Reminder  # noqa: F401  (create_all)
 from app.modules.reminders.router import router as reminders_router
 from app.modules.ads.models import AdCampaign  # noqa: F401  (create_all)
@@ -276,6 +280,7 @@ app.include_router(rentals_router)      # rentals — auth via router dependency
 app.include_router(category_router)     # category taxonomy — authenticated
 app.include_router(whatsapp_webhook_router)  # public — Meta WhatsApp webhook (ACC-008)
 app.include_router(whatsapp_admin_router)    # whatsapp conversations & leads — authenticated
-app.include_router(dreams_router)            # personal dream/goal tracker — authenticated
+app.include_router(dreams_router)
+app.include_router(dawn_router)              # authed — Dawn Block Android app
 app.include_router(reminders_router)         # payment/pickup/custom reminders — authenticated
 app.include_router(ads_router)               # ad campaigns: spend + lead attribution — authenticated
