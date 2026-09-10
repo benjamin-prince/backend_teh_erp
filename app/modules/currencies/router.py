@@ -72,3 +72,24 @@ def delete_currency(
         raise HTTPException(400, "Cannot delete base currency XAF")
     db.delete(obj)
     db.commit()
+
+
+# ── Public rates ─────────────────────────────────────────────────────────────
+# The shop on tehtek.com is not authenticated but has to price in USD for US
+# customers. Exchange rates are not confidential, and having one source beats
+# a rate hard-coded in the storefront drifting away from the one you maintain
+# here — which is exactly what had happened (600 here, 620 in the checkout).
+
+public_router = APIRouter(prefix="/api/v1/currencies", tags=["Currencies"])
+
+
+@public_router.get("/public")
+def public_rates(db: Session = Depends(get_db)):
+    rows = (db.query(models.Currency)
+              .filter(models.Currency.is_active == True)          # noqa: E712
+              .order_by(models.Currency.code).all())
+    return {
+        "base": "XAF",
+        "rates": {r.code: {"rate_to_xaf": r.rate_to_xaf,
+                           "symbol": r.symbol, "name": r.name} for r in rows},
+    }

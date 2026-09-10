@@ -20,6 +20,7 @@ Public whitelist (ACC-008):
   POST /api/v1/cargo/web-enquiry  ← teh-cargo.com contact form (honeypot + rate limit)
   POST /api/v1/cargo/pickup       ← teh-cargo.com pickup booking (honeypot + rate limit)
   POST /api/v1/cargo/pickup-photo ← photo of the goods, straight to Cloudinary
+  GET  /api/v1/currencies/public  ← exchange rates for the public shop
 """
 import logging
 from contextlib import asynccontextmanager
@@ -112,6 +113,7 @@ from app.modules.personal.router import router as personal_router  # ← NEW
 from app.modules.cargo.route_router import router as cargo_routes_router
 from app.modules.cargo.packing_router import router as packing_router, PackingType
 from app.modules.currencies.router import router as currencies_router
+from app.modules.currencies.router import public_router as currencies_public_router
 from app.modules.currencies.models import Currency  # noqa: F401
 from app.modules.stock.shop_router import router as shop_router
 from app.modules.stock.serial_router import router as serial_router
@@ -270,6 +272,7 @@ app.include_router(container_parties_router)
 app.include_router(service_projects_router)
 app.include_router(service_types_router)
 app.include_router(personal_router)
+app.include_router(currencies_public_router)  # public — exchange rates for the shop (ACC-008)
 app.include_router(currencies_router)
 app.include_router(shop_router)         # public — no auth
 app.include_router(shop_payment_router) # public — checkout & payment webhooks
