@@ -81,7 +81,8 @@ from app.modules.whatsapp.models import (  # noqa: F401
     WhatsAppConversation, WhatsAppMessage, WhatsAppLead
 )
 from app.modules.dawn.models import (  # noqa: F401  (create_all)
-    DawnDay, DawnSet, DawnCandidate, DawnResearch
+    DawnDay, DawnSet, DawnCandidate, DawnResearch,
+    DawnProfile, DawnPlanItem, DawnMeal, DawnWeight
 )
 from app.modules.dreams.models import (  # noqa: F401
     DreamState, Dream, DreamStep, DreamHabit, DreamJournal
