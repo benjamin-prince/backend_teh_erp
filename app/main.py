@@ -151,6 +151,11 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS created_shipment_id INTEGER",
             "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS created_income_id INTEGER",
             "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS created_payment_id INTEGER",
+            # dawn_days gained these after the table existed; create_all never
+            # adds columns to a table it already found.
+            "ALTER TABLE dawn_days ADD COLUMN IF NOT EXISTS wake_time VARCHAR(5)",
+            "ALTER TABLE dawn_days ADD COLUMN IF NOT EXISTS drink VARCHAR(20)",
+            "ALTER TABLE dawn_days ADD COLUMN IF NOT EXISTS read_note TEXT",
         ):
             _conn.execute(_sql_text(_stmt))
     db: Session = SessionLocal()
