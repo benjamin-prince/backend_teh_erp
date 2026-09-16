@@ -156,6 +156,10 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE dawn_days ADD COLUMN IF NOT EXISTS wake_time VARCHAR(5)",
             "ALTER TABLE dawn_days ADD COLUMN IF NOT EXISTS drink VARCHAR(20)",
             "ALTER TABLE dawn_days ADD COLUMN IF NOT EXISTS read_note TEXT",
+            # A logged entry is weight x reps OR a duration, so neither is required.
+            "ALTER TABLE dawn_sets ADD COLUMN IF NOT EXISTS minutes INTEGER",
+            "ALTER TABLE dawn_sets ALTER COLUMN weight DROP NOT NULL",
+            "ALTER TABLE dawn_sets ALTER COLUMN reps DROP NOT NULL",
         ):
             _conn.execute(_sql_text(_stmt))
     db: Session = SessionLocal()

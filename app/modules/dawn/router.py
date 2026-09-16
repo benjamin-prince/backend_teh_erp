@@ -72,8 +72,9 @@ class SetIn(BaseModel):
     lift_id:   str = Field(min_length=1, max_length=40)
     lift_name: str | None = Field(default=None, max_length=120)
     day:       str = Field(min_length=10, max_length=10)
-    weight:    float = Field(gt=0, le=2000)
-    reps:      int = Field(ge=1, le=500)
+    weight:    float | None = Field(default=None, gt=0, le=2000)
+    reps:      int | None = Field(default=None, ge=1, le=500)
+    minutes:   int | None = Field(default=None, ge=1, le=600)
 
 
 @router.get("/sets")
@@ -85,20 +86,26 @@ def list_sets(lift_id: str | None = Query(default=None), limit: int = Query(defa
     rows = q.order_by(DawnSet.id.desc()).limit(limit).all()
     return {"items": [{
         "id": r.id, "lift_id": r.lift_id, "lift_name": r.lift_name,
-        "day": r.day, "weight": float(r.weight), "reps": r.reps,
+        "day": r.day,
+        "weight": float(r.weight) if r.weight is not None else None,
+        "reps": r.reps, "minutes": r.minutes,
         "created_at": r.created_at.isoformat(),
     } for r in reversed(rows)]}
 
 
 @router.post("/sets", status_code=201)
 def add_set(body: SetIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    has_lift = body.weight is not None and body.reps is not None
+    if not has_lift and body.minutes is None:
+        raise HTTPException(400, "Donnez un poids et des répétitions, ou une durée.")
     row = DawnSet(user_id=user.id, lift_id=body.lift_id, lift_name=body.lift_name,
-                  day=body.day, weight=body.weight, reps=body.reps)
+                  day=body.day, weight=body.weight, reps=body.reps, minutes=body.minutes)
     db.add(row)
     db.commit()
     db.refresh(row)
     return {"id": row.id, "lift_id": row.lift_id, "day": row.day,
-            "weight": float(row.weight), "reps": row.reps}
+            "weight": float(row.weight) if row.weight is not None else None,
+            "reps": row.reps, "minutes": row.minutes}
 
 
 @router.get("/sets/last")
@@ -109,7 +116,10 @@ def last_per_lift(db: Session = Depends(get_db), user=Depends(get_current_user))
     best: dict[str, dict] = {}
     for r in rows:
         if r.lift_id not in best:
-            best[r.lift_id] = {"day": r.day, "weight": float(r.weight), "reps": r.reps}
+            best[r.lift_id] = {
+                "day": r.day, "reps": r.reps, "minutes": r.minutes,
+                "weight": float(r.weight) if r.weight is not None else None,
+            }
     return {"items": best}
 
 

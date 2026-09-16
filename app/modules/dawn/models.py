@@ -34,8 +34,11 @@ class DawnSet(Base):
     lift_id    = Column(String(40), nullable=False, index=True)
     lift_name  = Column(String(120), nullable=True)
     day        = Column(String(10), nullable=False)
-    weight     = Column(Numeric(8, 2), nullable=False)
-    reps       = Column(Integer, nullable=False)
+    # A set is either weight x reps, or a duration. Cardio, planks and
+    # stretching have no weight to record; asking for one is the bug.
+    weight     = Column(Numeric(8, 2), nullable=True)
+    reps       = Column(Integer, nullable=True)
+    minutes    = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
