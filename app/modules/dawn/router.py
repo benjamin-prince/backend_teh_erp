@@ -222,14 +222,15 @@ def _targets(p: DawnProfile) -> dict:
     evidence supports for gaining, because under-eating protein is the common
     failure and the excess is harmless.
 
-    Calories at maintenance plus a 400 kcal surplus: roughly 0.4 kg a week,
-    the middle of the 0.25–0.5 target. Maintenance uses 33 kcal/kg, which fits
-    a lifter training four mornings a week.
+    Calories land on the plan's 3,000–3,200 band at 90 kg and follow bodyweight
+    from there, so the figures stay the ones the 30-day plan was written around.
     """
     bw = float(p.bodyweight_kg or 90)
     return {
         "protein_g": int(p.protein_target_g or round(bw * 2.0)),
-        "kcal": int(p.kcal_target or round(bw * 33 + 400)),
+        "kcal": int(p.kcal_target or round(bw * 32 + 220)),
+        "protein_range": [170, 190],
+        "kcal_range": [3000, 3200],
     }
 
 
@@ -407,17 +408,92 @@ def reset_plan(db: Session = Depends(get_db), user=Depends(get_current_user)):
 
 # ── Meals ────────────────────────────────────────────────────────────────────
 
-SLOTS = ("fuel", "breakfast", "lunch", "dinner", "snack")
+# ── The eating plan ──────────────────────────────────────────────────────────
+# Slots follow the 30-day plan, but at the times the morning block actually
+# runs: the plan assumed a 3:00–4:30 session, whereas training here is
+# 4:45–5:50, so the pre-workout meal sits at 4:10 and the big breakfast at 6:15.
 
-# What to eat at 4:10am: fast protein plus fast carbs, low fat and low fibre so
-# it is out of the stomach before the first set. Around 250 kcal is enough —
-# more sits heavy under a bench press.
-FUEL_IDEAS = [
-    {"text": "Whey shake + banana",              "kcal": 250, "protein_g": 27},
-    {"text": "Greek yogurt + honey + oats",      "kcal": 280, "protein_g": 22},
-    {"text": "3 egg whites + white toast",       "kcal": 230, "protein_g": 20},
-    {"text": "Rice cakes + whey in water",       "kcal": 220, "protein_g": 25},
-    {"text": "Skimmed milk + dates",             "kcal": 240, "protein_g": 18},
+SLOT_ORDER = ["pre", "post", "snack_am", "lunch", "snack_pm", "dinner", "prebed"]
+SLOT_LABELS = {
+    "pre":      ("Pre-workout",    "4:10"),
+    "post":     ("Post-workout breakfast", "6:15"),
+    "snack_am": ("Morning snack",  "9:00"),
+    "lunch":    ("Lunch",          "12:30"),
+    "snack_pm": ("Afternoon snack", "16:00"),
+    "dinner":   ("Dinner",         "19:00"),
+    "prebed":   ("Pre-bed protein", "21:00"),
+}
+
+# Week 1 of the plan, which is the template the later weeks vary on.
+# Keyed by weekday: the plan's Day 1 is Monday, and it lines up with training.
+MEAL_PLAN = {
+    1: {"pre": "Banana + 2 slices whole-grain toast + 1 tbsp peanut butter",
+        "post": "4 eggs, oatmeal with whole milk, blueberries, Greek yogurt",
+        "snack_am": "Apple + Greek yogurt + walnuts",
+        "lunch": "Grilled chicken breast, rice, broccoli, avocado",
+        "snack_pm": "Tuna on whole-grain bread + orange",
+        "dinner": "Salmon, sweet potato, spinach",
+        "prebed": "Cottage cheese + berries"},
+    2: {"pre": "Banana + oatmeal with a little milk",
+        "post": "4 eggs, whole-grain toast, avocado, Greek yogurt + berries",
+        "snack_am": "Banana + almonds + milk",
+        "lunch": "Chicken thighs, rice, black beans, vegetables",
+        "snack_pm": "Turkey whole-grain sandwich + apple",
+        "dinner": "Lean ground beef, baked potato, broccoli",
+        "prebed": "Greek yogurt + 1 tbsp peanut butter"},
+    3: {"post": "3 eggs, oatmeal, banana, Greek yogurt",
+        "snack_am": "Apple + almonds",
+        "lunch": "Chicken, brown rice, vegetables, avocado",
+        "snack_pm": "Cottage cheese + berries",
+        "dinner": "Salmon, sweet potato, salad",
+        "prebed": "Greek yogurt"},
+    4: {"pre": "Banana + whole-grain toast + peanut butter",
+        "post": "4 eggs, oats + whole milk + banana, Greek yogurt",
+        "snack_am": "Cottage cheese + pineapple",
+        "lunch": "Turkey, rice, black beans, vegetables",
+        "snack_pm": "Tuna sandwich + fruit",
+        "dinner": "Chicken breast, potatoes, broccoli + olive oil",
+        "prebed": "Greek yogurt + walnuts"},
+    5: {"pre": "Banana + toast + peanut butter",
+        "post": "4 eggs, large oatmeal + milk + berries, Greek yogurt",
+        "snack_am": "Banana + almonds",
+        "lunch": "Lean beef, rice, beans, vegetables",
+        "snack_pm": "Turkey sandwich + fruit",
+        "dinner": "Salmon, rice, spinach, avocado",
+        "prebed": "Cottage cheese"},
+    6: {"post": "Eggs, avocado toast, fruit, Greek yogurt",
+        "snack_am": "Oats + milk + banana",
+        "lunch": "Chicken, rice, broccoli",
+        "snack_pm": "Apple + natural peanut butter",
+        "dinner": "Lean beef, sweet potato, mixed vegetables",
+        "prebed": "Greek yogurt"},
+    0: {"post": "3 eggs, oatmeal, berries",
+        "snack_am": "Greek yogurt + walnuts",
+        "lunch": "Salmon, rice, vegetables",
+        "snack_pm": "Cottage cheese + fruit",
+        "dinner": "Chicken, potatoes, salad + avocado",
+        "prebed": "Milk or Greek yogurt"},
+}
+
+SHOPPING = {
+    "Protein": ["Eggs", "Chicken breast", "Chicken thighs", "90–93% lean ground beef",
+                "Lean turkey", "Salmon", "Tuna in water", "Plain whole-milk Greek yogurt",
+                "Cottage cheese", "Whole milk", "Black beans"],
+    "Carbohydrates": ["Rolled oats", "Jasmine or brown rice", "Sweet potatoes",
+                      "White/red potatoes", "100% whole-grain bread", "Quinoa"],
+    "Fruit": ["Bananas", "Apples", "Oranges", "Berries", "Avocados"],
+    "Vegetables": ["Broccoli", "Spinach", "Mixed frozen vegetables", "Green beans",
+                   "Bell peppers", "Salad greens"],
+    "Fats": ["Natural peanut butter", "Extra-virgin olive oil", "Almonds", "Walnuts"],
+}
+
+PROGRESS_RULES = [
+    "Weigh in the same conditions and compare 7-day averages, never single days.",
+    "0.25–0.5 kg a week is the pace. Faster is mostly fat.",
+    "If the average has not moved for two weeks, add 150–250 kcal a day — rice, oats, milk, avocado or olive oil.",
+    "If the waist is growing faster than the lifts, cut the portions back a little.",
+    "Protein stays between 170 and 190 g a day.",
+    "Sleep is where the muscle is actually built.",
 ]
 
 
@@ -447,8 +523,8 @@ def list_meals(day: str | None = Query(default=None),
 
 @router.post("/meals", status_code=201)
 def add_meal(body: MealIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    if body.slot not in SLOTS:
-        raise HTTPException(400, f"Slot invalide. Attendu : {', '.join(SLOTS)}")
+    if body.slot not in SLOT_ORDER:
+        raise HTTPException(400, f"Slot invalide. Attendu : {', '.join(SLOT_ORDER)}")
     row = DawnMeal(user_id=user.id, day=body.day, slot=body.slot,
                    text=body.text.strip(), kcal=body.kcal, protein_g=body.protein_g)
     db.add(row)
@@ -521,7 +597,9 @@ def bootstrap(db: Session = Depends(get_db), user=Depends(get_current_user)):
         "user": {"id": user.id, "name": getattr(user, "first_name", None) or user.email},
         "profile": _profile_out(prof),
         "plan": _plan_out(plan),
-        "fuel_ideas": FUEL_IDEAS,
+        "meal_plan_today": MEAL_PLAN.get(int(datetime.utcnow().strftime("%w")), {}),
+        "slot_order": SLOT_ORDER,
+        "slot_labels": {k: {"label": v[0], "time": v[1]} for k, v in SLOT_LABELS.items()},
         "meals_today": [{"id": m.id, "slot": m.slot, "text": m.text,
                          "kcal": m.kcal, "protein_g": m.protein_g} for m in meals],
         "weights": [{"day": w.day, "kg": float(w.kg)} for w in weights],
@@ -529,4 +607,18 @@ def bootstrap(db: Session = Depends(get_db), user=Depends(get_current_user)):
         "last_sets": last_per_lift(db, user)["items"],
         "candidates": [_cand(c) for c in cands],
         "stages": STAGES,
+    }
+
+
+@router.get("/eating-plan")
+def eating_plan(db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """The 30-day plan as reference: today's meals, the list, and the rules."""
+    dow = int(datetime.utcnow().strftime("%w"))
+    return {
+        "today": MEAL_PLAN.get(dow, {}),
+        "slot_order": SLOT_ORDER,
+        "slot_labels": {k: {"label": v[0], "time": v[1]} for k, v in SLOT_LABELS.items()},
+        "shopping": SHOPPING,
+        "rules": PROGRESS_RULES,
+        "targets": _targets(_get_profile(db, user)),
     }
