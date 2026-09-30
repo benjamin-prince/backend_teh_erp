@@ -123,3 +123,27 @@ class DawnWeight(Base):
     kg         = Column(Numeric(6, 2), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DawnTask(Base):
+    """One thing to do, with a kind and a deadline.
+
+    Deliberately separate from Reminder: that one is company-scoped and pushes
+    to customers over WhatsApp. This is personal — buy, call, do, ads, admin —
+    and belongs to the user, like everything else in this module.
+    """
+    __tablename__ = "dawn_tasks"
+
+    id         = Column(Integer, primary_key=True)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title      = Column(String(300), nullable=False)
+    # buy | call | do | ads | admin | health
+    kind       = Column(String(20), nullable=False, default="do")
+    due_date   = Column(String(10), nullable=True, index=True)   # YYYY-MM-DD
+    # none | daily | weekly — a repeating task reappears once ticked.
+    repeat     = Column(String(10), nullable=False, default="none")
+    priority   = Column(Integer, nullable=False, default=1)       # 0 high, 1 normal, 2 low
+    notes      = Column(Text, nullable=True)
+    done_at    = Column(DateTime, nullable=True)
+    last_done  = Column(String(10), nullable=True)   # for repeating tasks
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

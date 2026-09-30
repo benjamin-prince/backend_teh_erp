@@ -16,7 +16,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.modules.dawn.models import (
     DawnCandidate, DawnDay, DawnMeal, DawnPlanItem, DawnProfile,
-    DawnResearch, DawnSet, DawnWeight,
+    DawnResearch, DawnSet, DawnTask, DawnWeight,
 )
 
 router = APIRouter(prefix="/api/v1/dawn", tags=["dawn-block"])
@@ -632,3 +632,99 @@ def eating_plan(db: Session = Depends(get_db), user=Depends(get_current_user)):
         "rules": PROGRESS_RULES,
         "targets": _targets(_get_profile(db, user)),
     }
+
+
+# ── Tasks ────────────────────────────────────────────────────────────────────
+
+KINDS = ("buy", "call", "do", "ads", "admin", "health")
+REPEATS = ("none", "daily", "weekly")
+
+
+class TaskIn(BaseModel):
+    title:    str = Field(min_length=1, max_length=300)
+    kind:     str = Field(default="do", max_length=20)
+    due_date: str | None = Field(default=None, max_length=10)
+    repeat:   str = Field(default="none", max_length=10)
+    priority: int = Field(default=1, ge=0, le=2)
+    notes:    str | None = None
+
+
+class TaskPatch(BaseModel):
+    title:    str | None = Field(default=None, max_length=300)
+    kind:     str | None = Field(default=None, max_length=20)
+    due_date: str | None = Field(default=None, max_length=10)
+    repeat:   str | None = Field(default=None, max_length=10)
+    priority: int | None = Field(default=None, ge=0, le=2)
+    notes:    str | None = None
+    done:     bool | None = None
+
+
+def _task_out(t: DawnTask) -> dict:
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    # A repeating task is "done" only for the day it was last ticked.
+    done = (t.last_done == today) if t.repeat != "none" else (t.done_at is not None)
+    return {
+        "id": t.id, "title": t.title, "kind": t.kind, "due_date": t.due_date,
+        "repeat": t.repeat, "priority": t.priority, "notes": t.notes,
+        "done": done,
+        "overdue": bool(t.due_date and t.due_date < today and not done),
+    }
+
+
+@router.get("/tasks")
+def list_tasks(include_done: bool = Query(default=False),
+               db: Session = Depends(get_db), user=Depends(get_current_user)):
+    q = db.query(DawnTask).filter(DawnTask.user_id == user.id)
+    if not include_done:
+        # Repeating tasks always stay on the list; one-offs drop off once done.
+        q = q.filter((DawnTask.done_at.is_(None)) | (DawnTask.repeat != "none"))
+    rows = q.order_by(DawnTask.priority.asc(),
+                      DawnTask.due_date.asc().nullslast(),
+                      DawnTask.id.desc()).limit(500).all()
+    return {"items": [_task_out(t) for t in rows], "kinds": list(KINDS)}
+
+
+@router.post("/tasks", status_code=201)
+def add_task(body: TaskIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    if body.kind not in KINDS:
+        raise HTTPException(400, f"Kind must be one of: {', '.join(KINDS)}")
+    if body.repeat not in REPEATS:
+        raise HTTPException(400, f"Repeat must be one of: {', '.join(REPEATS)}")
+    t = DawnTask(user_id=user.id, title=body.title.strip(), kind=body.kind,
+                 due_date=body.due_date or None, repeat=body.repeat,
+                 priority=body.priority, notes=body.notes)
+    db.add(t); db.commit(); db.refresh(t)
+    return _task_out(t)
+
+
+def _own_task(db: Session, user, tid: int) -> DawnTask:
+    t = db.query(DawnTask).filter(DawnTask.id == tid, DawnTask.user_id == user.id).first()
+    if not t:
+        raise HTTPException(404, "Task not found")
+    return t
+
+
+@router.patch("/tasks/{tid}")
+def patch_task(tid: int, body: TaskPatch,
+               db: Session = Depends(get_db), user=Depends(get_current_user)):
+    t = _own_task(db, user, tid)
+    if body.title:              t.title = body.title.strip()
+    if body.kind:               t.kind = body.kind
+    if body.repeat:             t.repeat = body.repeat
+    if body.priority is not None: t.priority = body.priority
+    if body.notes is not None:  t.notes = body.notes
+    if body.due_date is not None: t.due_date = body.due_date or None
+    if body.done is not None:
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        if t.repeat != "none":
+            # Repeating: tick for today, untick clears today only.
+            t.last_done = today if body.done else None
+        else:
+            t.done_at = datetime.utcnow() if body.done else None
+    db.commit(); db.refresh(t)
+    return _task_out(t)
+
+
+@router.delete("/tasks/{tid}", status_code=204)
+def delete_task(tid: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    db.delete(_own_task(db, user, tid)); db.commit()
