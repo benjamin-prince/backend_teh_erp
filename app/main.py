@@ -82,7 +82,8 @@ from app.modules.whatsapp.models import (  # noqa: F401
 )
 from app.modules.dawn.models import (  # noqa: F401  (create_all)
     DawnDay, DawnSet, DawnCandidate, DawnResearch,
-    DawnProfile, DawnPlanItem, DawnMeal, DawnWeight, DawnTask
+    DawnProfile, DawnPlanItem, DawnMeal, DawnWeight, DawnTask,
+    DawnDayPlan, DawnTracker, DawnLog, DawnAccount, DawnBalance
 )
 from app.modules.dreams.models import (  # noqa: F401
     DreamState, Dream, DreamStep, DreamHabit, DreamJournal
@@ -160,6 +161,15 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE dawn_sets ADD COLUMN IF NOT EXISTS minutes INTEGER",
             "ALTER TABLE dawn_sets ALTER COLUMN weight DROP NOT NULL",
             "ALTER TABLE dawn_sets ALTER COLUMN reps DROP NOT NULL",
+            # The day became a 03:30–21:00 timetable, and tasks a plan made the
+            # night before rather than a list grown during the day.
+            "ALTER TABLE dawn_tasks ADD COLUMN IF NOT EXISTS unplanned INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE dawn_tasks ADD COLUMN IF NOT EXISTS slot VARCHAR(5)",
+            "ALTER TABLE dawn_tasks ADD COLUMN IF NOT EXISTS slots INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE dawn_profile ADD COLUMN IF NOT EXISTS day_start VARCHAR(5) NOT NULL DEFAULT '03:30'",
+            "ALTER TABLE dawn_profile ADD COLUMN IF NOT EXISTS day_end VARCHAR(5) NOT NULL DEFAULT '21:00'",
+            "ALTER TABLE dawn_profile ADD COLUMN IF NOT EXISTS slot_minutes INTEGER NOT NULL DEFAULT 30",
+            "ALTER TABLE dawn_logs ADD COLUMN IF NOT EXISTS planned NUMERIC(12,2)",
         ):
             _conn.execute(_sql_text(_stmt))
     db: Session = SessionLocal()
