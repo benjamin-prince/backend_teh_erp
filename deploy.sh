@@ -5,8 +5,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-SSH_KEY="$HOME/LightsailDefaultKey-eu-west-3.pem"
-VPS="ubuntu@tehtek.com"
+SSH_KEY="$HOME/LightsailDefaultKey-us-east-1.pem"
+VPS="ubuntu@35.170.65.61"
 REMOTE_DIR="/opt/backend"
 IMAGE="boulaz2002/tehtek-backend:latest"
 
