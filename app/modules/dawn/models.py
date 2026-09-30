@@ -141,7 +141,7 @@ class DawnTask(Base):
     id         = Column(Integer, primary_key=True)
     user_id    = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     title      = Column(String(300), nullable=False)
-    # buy | call | do | ads | admin | health
+    # buy | call | do | ads | admin | health | collect
     kind       = Column(String(20), nullable=False, default="do")
     due_date   = Column(String(10), nullable=True, index=True)   # YYYY-MM-DD
     # Which 30-minute block of the day this sits in, HH:MM. NULL = unscheduled.

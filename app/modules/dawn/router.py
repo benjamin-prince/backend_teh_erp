@@ -677,7 +677,9 @@ def eating_plan(db: Session = Depends(get_db), user=Depends(get_current_user)):
 
 # ── Tasks ────────────────────────────────────────────────────────────────────
 
-KINDS = ("buy", "call", "do", "ads", "admin", "health")
+# "collect" is money owed to him rather than a thing to do — a client or a
+# relative who has to pay, tracked in the same list so it cannot be forgotten.
+KINDS = ("buy", "call", "do", "ads", "admin", "health", "collect")
 REPEATS = ("none", "daily", "weekly")
 
 
