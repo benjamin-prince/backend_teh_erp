@@ -377,6 +377,55 @@ DEFAULT_PLAN: dict[int, list[tuple[str, str, str]]] = {
         ("stretch", "Stretching", "10 min")],
 }
 
+# The same week, done at home: dumbbells, a band, a chair and the floor. The
+# focus of each day is unchanged, so switching place does not restart the
+# programme — only the equipment it assumes.
+HOME_PLAN: dict[int, list[tuple[str, str, str]]] = {
+    1: [("hip-thrust-home", "Hip thrust, shoulders on the sofa", "4 × 10–15"),
+        ("rdl-home", "Dumbbell Romanian deadlift", "3 × 10–12"),
+        ("bulgarian-home", "Bulgarian split squat, foot on a chair", "3 × 8–12 / side"),
+        ("rev-lunge-home", "Reverse lunge", "3 × 10–12 / side"),
+        ("bridge-march", "Glute bridge march", "3 × 12–15 / side"),
+        ("band-abduction", "Band hip abduction", "3 × 15–20")],
+    2: [("pushup-feet-up", "Push-up, feet elevated", "4 × 8–15"),
+        ("floor-press", "Dumbbell floor press", "3 × 8–12"),
+        ("floor-fly", "Dumbbell fly on the floor", "3 × 12–15"),
+        ("db-row-home", "One-arm dumbbell row", "3 × 10–12 / side"),
+        ("band-pull-apart", "Band pull-apart", "3 × 15"),
+        ("chair-dip", "Bench dip on a chair", "3 × 10–15")],
+    3: [("db-shoulder-home", "Dumbbell shoulder press", "3 × 8–12"),
+        ("lateral-home", "Dumbbell lateral raise", "4 × 12–15"),
+        ("rear-delt-home", "Bent-over rear delt fly", "3 × 15"),
+        ("curl-home", "Seated dumbbell curl", "3 × 10–12"),
+        ("overhead-ext-home", "Overhead dumbbell triceps extension", "3 × 10–15"),
+        ("hammer-home", "Hammer curl", "3 × 12"),
+        ("leg-raise", "Lying leg raise", "3 × 12"),
+        ("plank", "Plank", "3 × 45 s")],
+    4: [("goblet-squat", "Goblet squat", "4 × 8–12"),
+        ("bulgarian-home-2", "Bulgarian split squat", "3 × 10 / side"),
+        ("step-up", "Step-up on a chair", "3 × 10 / side"),
+        ("lunge-home", "Walking lunge on the spot", "3 × 12 / side"),
+        ("ham-slide", "Hamstring slide or Nordic negative", "3 × 8"),
+        ("calf-home", "Single-leg calf raise", "4 × 15 / side")],
+    5: [("pushup-slow", "Push-up, slow tempo", "4 × 10–15"),
+        ("floor-press-heavy", "Heavy dumbbell floor press", "4 × 6–10"),
+        ("chair-dip-2", "Chair dip", "3 × 10–15"),
+        ("renegade-row", "Renegade row", "3 × 8–10 / side"),
+        ("db-curl-home", "Dumbbell curl", "3 × 10–12"),
+        ("skull-crusher", "Floor skull crusher", "3 × 10–12")],
+    6: [("glute-bridge", "Glute bridge", "3 × 15–20"),
+        ("frog-pump", "Frog pump", "3 × 20"),
+        ("band-kickback", "Band glute kickback", "3 × 15 / side"),
+        ("band-abduction-2", "Seated band abduction", "4 × 20"),
+        ("pushup-home", "Push-up", "3 × 12–15"),
+        ("lateral-home-2", "Lateral raise", "3 × 15"),
+        ("arms-super-home", "Curl and extension superset", "3 × 12")],
+    0: [("walk", "Easy walk", "20–30 min"),
+        ("stretch", "Stretching", "10 min")],
+}
+
+PLACES = {"gym": DEFAULT_PLAN, "home": HOME_PLAN}
+
 SESSION_NAMES = {
     0: "Recovery — walk and stretch",
     1: "Lower body, glutes (heavy)",
@@ -388,11 +437,11 @@ SESSION_NAMES = {
 }
 
 
-def _seed_plan(db: Session, user) -> None:
+def _seed_plan(db: Session, user, place: str = "gym") -> None:
     """First read installs the programme; after that the user's edits stand."""
     if db.query(DawnPlanItem).filter(DawnPlanItem.user_id == user.id).first():
         return
-    for dow, items in DEFAULT_PLAN.items():
+    for dow, items in PLACES.get(place, DEFAULT_PLAN).items():
         for i, (lid, name, scheme) in enumerate(items):
             db.add(DawnPlanItem(user_id=user.id, dow=dow, position=i,
                                 lift_id=lid, name=name, scheme=scheme))
@@ -469,11 +518,14 @@ def delete_plan_item(iid: int, db: Session = Depends(get_db), user=Depends(get_c
 
 
 @router.post("/plan/reset")
-def reset_plan(db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Back to the programme as written, discarding edits."""
+def reset_plan(place: str = Query(default="gym"),
+               db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Back to the programme as written, for the gym or for home."""
+    if place not in PLACES:
+        raise HTTPException(400, f"Place must be one of: {', '.join(PLACES)}")
     db.query(DawnPlanItem).filter(DawnPlanItem.user_id == user.id).delete()
     db.commit()
-    _seed_plan(db, user)
+    _seed_plan(db, user, place)
     rows = db.query(DawnPlanItem).filter(DawnPlanItem.user_id == user.id).all()
     return _plan_out(rows)
 
