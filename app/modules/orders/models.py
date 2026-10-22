@@ -32,6 +32,11 @@ class Order(Base):
     tax_type      = Column(String(20), nullable=False, default="none")  # none | tva | retenue
     tax_rate      = Column(Numeric(6, 3), default=0)    # percent, e.g. 19.250
     price_inclusive = Column(Boolean, default=False)    # entered unit prices already include TVA (TTC)
+    # per_item: the base is the sum of the lines. fixed: one price was agreed
+    # for the lot and the lines only say what it contains — which is how most
+    # proformas here are written, with an empty unit-price column.
+    price_mode    = Column(String(20), nullable=False, default="per_item")  # per_item | fixed
+    fixed_total   = Column(Numeric(14, 2), nullable=True)  # the agreed lot price, HT
 
     # Special orders (STK-007)
     deposit_amount = Column(Numeric(14, 2), nullable=True)

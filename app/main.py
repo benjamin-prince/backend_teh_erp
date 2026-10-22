@@ -175,6 +175,9 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE customers ALTER COLUMN first_name DROP NOT NULL",
             "ALTER TABLE customers ALTER COLUMN last_name DROP NOT NULL",
             "UPDATE customers SET entity_type = 'individual' WHERE entity_type = 'person'",
+            # A lot quoted at one agreed price, rather than line by line.
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS price_mode VARCHAR(20) NOT NULL DEFAULT 'per_item'",
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS fixed_total NUMERIC(14,2)",
         ):
             _conn.execute(_sql_text(_stmt))
     db: Session = SessionLocal()

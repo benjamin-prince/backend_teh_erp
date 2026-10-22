@@ -19,6 +19,19 @@ router = APIRouter(
 )
 
 
+def _raw_base(price_mode: Optional[str], fixed_total, items) -> float:
+    """The amount tax is computed on.
+
+    With a fixed price the lines are a description of the lot, not its
+    pricing, so their unit prices are ignored entirely — they are usually zero.
+    """
+    if (price_mode or "per_item") == "fixed":
+        if fixed_total is None:
+            raise HTTPException(400, "A fixed-price order needs its total.")
+        return float(fixed_total)
+    return sum(i.quantity * i.unit_price for i in items)
+
+
 def compute_tax(raw_subtotal: float, tax_type: Optional[str], tax_rate: float,
                 price_inclusive: bool, discount: float):
     """Compute (subtotal_HT, tax_amount, retenue_amount, total) for one tax type.
@@ -61,6 +74,8 @@ class OrderItemIn(BaseModel):
 
 class OrderCreate(BaseModel):
     customer_id: int
+    price_mode: str = "per_item"            # per_item | fixed
+    fixed_total: Optional[float] = None     # required when price_mode is fixed
     order_type: str = "sale_order"
     currency: str = "XAF"
     items: List[OrderItemIn]
@@ -90,7 +105,7 @@ def create_order(
 ):
     """OR-001: total = subtotal + TVA − retenue − discount."""
     order_number = next_sequence(db, SequenceType.order_number)
-    raw = sum(i.quantity * i.unit_price for i in body.items)
+    raw = _raw_base(body.price_mode, body.fixed_total, body.items)
     subtotal, tax, retenue, total = compute_tax(
         raw, body.tax_type, body.tax_rate, body.price_inclusive, body.discount_amount)
 
@@ -108,6 +123,8 @@ def create_order(
         tax_type=body.tax_type,
         tax_rate=body.tax_rate,
         price_inclusive=body.price_inclusive,
+        price_mode=body.price_mode,
+        fixed_total=body.fixed_total,
         guarantee_value=body.guarantee_value,
         guarantee_unit=body.guarantee_unit,
         delivery_delay_value=body.delivery_delay_value,
@@ -237,6 +254,8 @@ class OrderUpdate(BaseModel):
     tax_type: Optional[str] = None            # none | tva | retenue
     tax_rate: Optional[float] = None          # percent
     price_inclusive: Optional[bool] = None
+    price_mode: Optional[str] = None
+    fixed_total: Optional[float] = None
     discount_amount: Optional[float] = None
     delivered: Optional[bool] = None           # independent fulfilment flag
     guarantee_value: Optional[int] = None
@@ -293,12 +312,21 @@ def update_order(
     if body.price_inclusive is not None:
         o.price_inclusive = body.price_inclusive
         recompute = True
+    if body.price_mode is not None:
+        o.price_mode = body.price_mode
+        recompute = True
+    if body.fixed_total is not None:
+        o.fixed_total = body.fixed_total
+        recompute = True
     if body.discount_amount is not None:
         o.discount_amount = body.discount_amount
         recompute = True
 
     if recompute:
-        raw = sum(float(i.quantity) * float(i.unit_price) for i in o.items)
+        if (o.price_mode or "per_item") == "fixed":
+            raw = float(o.fixed_total or 0)
+        else:
+            raw = sum(float(i.quantity) * float(i.unit_price) for i in o.items)
         subtotal, tax, retenue, total = compute_tax(
             raw, o.tax_type, float(o.tax_rate or 0), bool(o.price_inclusive),
             float(o.discount_amount or 0))
