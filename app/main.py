@@ -178,6 +178,10 @@ async def lifespan(app: FastAPI):
             # A lot quoted at one agreed price, rather than line by line.
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS price_mode VARCHAR(20) NOT NULL DEFAULT 'per_item'",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS fixed_total NUMERIC(14,2)",
+            # "working_day" does not fit in the 10 characters a unit label was
+            # given; the unit is a word, not a code.
+            "ALTER TABLE orders ALTER COLUMN delivery_delay_unit TYPE VARCHAR(20)",
+            "ALTER TABLE invoices ALTER COLUMN delivery_delay_unit TYPE VARCHAR(20)",
         ):
             _conn.execute(_sql_text(_stmt))
     db: Session = SessionLocal()

@@ -47,9 +47,9 @@ class Order(Base):
     delivered_at  = Column(DateTime, nullable=True)
     # Document terms (shown on all documents)
     guarantee_value      = Column(Integer, nullable=True)
-    guarantee_unit       = Column(String(10), nullable=True)   # week | month | year
+    guarantee_unit       = Column(String(20), nullable=True)   # week | month | year
     delivery_delay_value = Column(Integer, nullable=True)
-    delivery_delay_unit  = Column(String(10), nullable=True)   # day | month
+    delivery_delay_unit  = Column(String(20), nullable=True)   # day | working_day | month
 
     delivery_address = Column(Text, nullable=True)
     notes         = Column(Text, nullable=True)

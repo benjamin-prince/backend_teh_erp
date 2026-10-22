@@ -49,9 +49,9 @@ class Invoice(Base):
     advance_pct    = Column(Numeric(6, 2), nullable=True)
     # Document terms carried from the source order/project (shown on the invoice)
     guarantee_value      = Column(Integer, nullable=True)
-    guarantee_unit       = Column(String(10), nullable=True)   # week | month | year
+    guarantee_unit       = Column(String(20), nullable=True)   # week | month | year
     delivery_delay_value = Column(Integer, nullable=True)
-    delivery_delay_unit  = Column(String(10), nullable=True)   # day | month
+    delivery_delay_unit  = Column(String(20), nullable=True)   # day | working_day | month
 
     currency       = Column(String(10), default="XAF")
     due_date       = Column(DateTime, nullable=True)
