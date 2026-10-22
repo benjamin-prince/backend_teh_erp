@@ -50,7 +50,7 @@ def seed_parent_company(db: Session) -> Company:
     company = db.query(Company).filter_by(code="TEHTEK").first()
     if not company:
         company = Company(
-            name="TEHTEK IT Services",
+            name="TEHTEK",
             code="TEHTEK",
             company_type=CompanyType.parent,
             country="Cameroon",

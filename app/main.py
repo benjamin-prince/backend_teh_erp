@@ -210,7 +210,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="TEHTEK ERP API",
-    description="TEHTEK IT Services — Cargo, Retail, Infrastructure",
+    description="TEHTEK — Cargo, Retail, Infrastructure",
     version="1.3.0",
     docs_url="/api/docs", # if settings.DEBUG else None,
     redoc_url="/api/redoc" if settings.DEBUG else None,
