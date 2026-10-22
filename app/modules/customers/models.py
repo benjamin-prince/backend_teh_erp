@@ -180,9 +180,15 @@ class Customer(Base):
     user_id          = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # ── Identity ──────────────────────────────────────────────────────────────
-    entity_type      = Column(String(20), default="person")   # person | company
-    first_name       = Column(String(100), nullable=False)
-    last_name        = Column(String(100), nullable=False)
+    # One spelling only: the column used to take "person" from the model
+    # default and "individual" from the API schema, and the finance screen
+    # printed both back to the user.
+    entity_type      = Column(String(20), default="individual")  # individual | company
+    # A company has no surname, and a person entered as one full name has no
+    # separate one either. Forcing NOT NULL here is what produced the empty
+    # string that every display then had to work around.
+    first_name       = Column(String(100), nullable=True)
+    last_name        = Column(String(100), nullable=True)
     company_name     = Column(String(200), nullable=True)
 
     # ── Legal / Company info ──────────────────────────────────────────────────
@@ -247,9 +253,15 @@ class Customer(Base):
 
     @property
     def full_name(self) -> str:
-        if self.company_name and self.entity_type == "company":
-            return self.company_name
-        return f"{self.first_name} {self.last_name}".strip()
+        if self.entity_type == "company":
+            return (self.company_name or self.first_name or "").strip()
+        return " ".join(p for p in (self.first_name, self.last_name) if p).strip()
+
+    @property
+    def initials(self) -> str:
+        """Never indexes into a name that may be absent."""
+        parts = [p for p in self.full_name.split() if p]
+        return "".join(p[0].upper() for p in parts[:2]) or "?"
 
 
 class CustomerKYC(Base):

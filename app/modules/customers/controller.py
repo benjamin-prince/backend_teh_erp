@@ -22,7 +22,34 @@ def validate_for_transaction(customer: Customer) -> dict:
     return {"valid": True, "warnings": warnings}
 
 
+def _normalise_names(data: dict) -> dict:
+    """Turn what the form sends into what the columns hold.
+
+    A company keeps its name in company_name and leaves the person fields
+    empty. A person arrives as one full name and is split on the last space,
+    because the shop portal, the scheduler and the reminders all still read
+    first_name and last_name separately — splitting keeps them working while
+    the form stops asking for two fields.
+    """
+    full = (data.pop("full_name", None) or "").strip()
+
+    if data.get("entity_type") == "company":
+        data["first_name"] = None
+        data["last_name"] = None
+        return data
+
+    if full and not (data.get("first_name") or "").strip():
+        parts = full.split()
+        data["first_name"] = " ".join(parts[:-1]) if len(parts) > 1 else parts[0]
+        data["last_name"] = parts[-1] if len(parts) > 1 else None
+    else:
+        data["first_name"] = (data.get("first_name") or "").strip() or None
+        data["last_name"] = (data.get("last_name") or "").strip() or None
+    return data
+
+
 def create_customer(db: Session, data: dict, actor_id: int) -> Customer:
+    data = _normalise_names(dict(data))
     code = next_sequence(db, SequenceType.customer_code)
     customer = Customer(**data, customer_code=code, created_by=actor_id)
     db.add(customer)
@@ -52,6 +79,12 @@ def get_by_code(db: Session, code: str) -> Optional[Customer]:
 
 
 def update_customer(db: Session, customer: Customer, data: dict) -> Customer:
+    if "full_name" in data:
+        # An update rarely resends entity_type, and without it a company would
+        # be normalised as a person and lose its name fields.
+        data = dict(data)
+        data.setdefault("entity_type", customer.entity_type)
+        data = _normalise_names(data)
     for k, v in data.items():
         setattr(customer, k, v)
     customer.updated_at = datetime.utcnow()

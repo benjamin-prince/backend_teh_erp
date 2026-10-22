@@ -1,14 +1,18 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, model_validator, EmailStr
 from app.core.enums import CustomerType, CustomerStatus, CustomerRiskLevel, KYCStatus, KYCLevel
 
 
 class CustomerCreate(BaseModel):
     company_id: Optional[int] = None
 
-    first_name: str
-    last_name: str
+    # A person is created with one full name; a company with its name. The
+    # split first/last pair is still accepted for the shop portal, which
+    # collects them separately at sign-up.
+    full_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     company_name: Optional[str] = None
 
     entity_type: str = "individual"
@@ -26,7 +30,22 @@ class CustomerCreate(BaseModel):
 
     customer_type: CustomerType = CustomerType.retail
 
+    @model_validator(mode="after")
+    def _require_a_name(self):
+        """A customer must be identifiable: a company by its name, a person by
+        theirs. Which one is required depends entirely on the entity type."""
+        if self.entity_type == "company":
+            if not (self.company_name or "").strip():
+                raise ValueError("Company name is required for a company.")
+        else:
+            has_name = (self.full_name or "").strip() or (self.first_name or "").strip()
+            if not has_name:
+                raise ValueError("Full name is required for an individual.")
+        return self
+
+
 class CustomerUpdate(BaseModel):
+    full_name: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     company_name: Optional[str] = None
@@ -59,8 +78,8 @@ class CustomerOut(BaseModel):
     confirmed_by_currency: dict = {}         # confirmé mais pas encore livré
     payment_sources: list = []               # ventilation par objet source
 
-    first_name: str
-    last_name: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     full_name: str
     company_name: Optional[str]
 

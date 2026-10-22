@@ -170,6 +170,11 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE dawn_profile ADD COLUMN IF NOT EXISTS day_end VARCHAR(5) NOT NULL DEFAULT '21:00'",
             "ALTER TABLE dawn_profile ADD COLUMN IF NOT EXISTS slot_minutes INTEGER NOT NULL DEFAULT 30",
             "ALTER TABLE dawn_logs ADD COLUMN IF NOT EXISTS planned NUMERIC(12,2)",
+            # A company customer has no first or last name; the form used to
+            # store the company name in first_name and an empty last_name.
+            "ALTER TABLE customers ALTER COLUMN first_name DROP NOT NULL",
+            "ALTER TABLE customers ALTER COLUMN last_name DROP NOT NULL",
+            "UPDATE customers SET entity_type = 'individual' WHERE entity_type = 'person'",
         ):
             _conn.execute(_sql_text(_stmt))
     db: Session = SessionLocal()
