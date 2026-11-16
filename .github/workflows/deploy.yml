@@ -1,0 +1,60 @@
+name: Deploy
+
+# Push to main -> build image -> push to Docker Hub -> redeploy on the VPS.
+# Changes that only touch .github/ or Markdown files don't trigger a deploy.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['.github/**', '**.md']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            boulaz2002/tehtek-backend:latest
+            boulaz2002/tehtek-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Redeploy on VPS
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # The key is restricted on the server: it can only redeploy a named service.
+          ssh -i ~/.ssh/deploy_key ubuntu@35.170.65.61 backend
+
+      - name: Health check
+        run: |
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 https://api2.tehtek.com/api/v1/health || true)
+            echo "https://api2.tehtek.com/api/v1/health -> $code"
+            [[ $code =~ ^(2|3) ]] && exit 0
+            sleep 10
+          done
+          exit 1
